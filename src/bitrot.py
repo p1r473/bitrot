@@ -66,7 +66,7 @@ def sendMail(stringToSend="", log=1, verbosity=1, subject=""):
     msg['To'] = email.utils.formataddr(('Recipient', 'recipient@gmail.com'))
     msg['From'] = email.utils.formataddr(('Author', 'recipient@gmail.com'))
     USERNAME = 'authorUsername'
-
+    
     try:
         msg['Subject'] = subject
         # The actual mail send
@@ -580,7 +580,6 @@ class Bitrot(object):
 
         conn.commit()
 
-
         if self.verbosity:
             cur.execute('SELECT COUNT(path) FROM bitrot')
             all_count = cur.fetchone()[0]
@@ -601,8 +600,7 @@ class Bitrot(object):
                 fixedPropertiesCounter,
             )
 
-
-
+        cur.execute('vacuum')
         update_sha512_integrity(verbosity=self.verbosity, log=self.log)
 
         if self.verbosity:
