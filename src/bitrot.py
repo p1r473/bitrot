@@ -80,12 +80,12 @@ def writeToLog(stringToWrite=""):
 def sendMail(stringToSend="", log=1, verbosity=1, subject=""):
     msg = MIMEText(stringToSend)
 
-    FROMADDR = 'p1r473ifttt@gmail.com'
-    TOADDR  = 'newpassword@gmail.com'
-    msg['To'] = email.utils.formataddr(('Jared', 'newpassword@gmail.com'))
-    msg['From'] = email.utils.formataddr(('Jared', 'p1r473ifttt@gmail.com'))
-    USERNAME = 'p1r473ifttt'
-
+    FROMADDR = 'author@gmail.com'
+    TOADDR  = 'recipient@gmail.com'
+    msg['To'] = email.utils.formataddr(('Recipient', 'recipient@gmail.com'))
+    msg['From'] = email.utils.formataddr(('Author', 'recipient@gmail.com'))
+    USERNAME = 'authorUsername'
+    
     try:
         msg['Subject'] = subject
         # The actual mail send
