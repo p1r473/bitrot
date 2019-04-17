@@ -328,9 +328,10 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=1, fix=5, warnin
                     fixedRenameList[fixedRenameCounter].append(os.path.join(root, p_uniBackup))
                     fixedRenameList[fixedRenameCounter].append(os.path.join(root, p_uni))
                     fixedRenameCounter += 1
-            if verbosity:
-                progressCounter+=1
-                bar.update(progressCounter)
+                    if verbosity:
+                        progressCounter+=1
+                        bar.update(progressCounter)
+            
         for d in dirs:
             if (isDirtyString(d)):
                 try:
@@ -352,9 +353,9 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=1, fix=5, warnin
                     fixedRenameList[fixedRenameCounter].append(os.path.join(root, p_uniBackup))
                     fixedRenameList[fixedRenameCounter].append(os.path.join(root, p_uni))
                     fixedRenameCounter += 1
-            if verbosity:
-                progressCounter+=1
-                bar.update(progressCounter)
+                    if verbosity:
+                        progressCounter+=1
+                        bar.update(progressCounter)
     if verbosity:
         bar.finish()
     return fixedRenameList, fixedRenameCounter
@@ -565,7 +566,9 @@ class Bitrot(object):
                     continue
 
                 raise   # Not expected? https://github.com/ambv/bitrot/issues/
-           
+            if self.verbosity:
+                progressCounter+=1
+                bar.update(progressCounter) 
             new_mtime = int(st.st_mtime)
             new_atime = int(st.st_atime)
             new_mtime_orig = new_mtime
@@ -674,8 +677,8 @@ class Bitrot(object):
                     missing_paths.discard(stored_path)
                 continue
             else:
-            	existing_paths.append(p)
-            	
+                existing_paths.append(p)
+
             stored_mtime, stored_hash, stored_ts = row
 
             if (int(stored_mtime) != new_mtime) and not (self.test == 2):
@@ -700,9 +703,6 @@ class Bitrot(object):
                         #p, stored_hash, new_hash, stored_ts
                         self.algorithm,p.encode(FSENCODING), stored_hash, new_hash, stored_ts),self.log)   
                 FIMErrorCounter += 1 
-            if self.verbosity:
-                progressCounter+=1
-                bar.update(progressCounter) 
         if self.verbosity:    
             bar.finish()
 
@@ -776,7 +776,7 @@ class Bitrot(object):
             row = cur.fetchone()
         return result
 
-    def progressFormat(self, currentPosition,totalPosition,current_path):       
+    def progressFormat(self, currentPosition,totalPosition,current_path): 
         current_path = cleanString(stringToClean=current_path.decode(FSENCODING))
         terminal_size = shutil.get_terminal_size()
         cols = terminal_size.columns
