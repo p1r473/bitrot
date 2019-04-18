@@ -56,6 +56,7 @@ IGNORED_FILE_SYSTEM_ERRORS = {errno.ENOENT, errno.EACCES}
 FSENCODING = sys.getfilesystemencoding()
 DEFAULT_HASH_FUNCTION = "SHA512"
 SOURCE_DIR='.'
+SOURCE_DIR_PATH = '.'
 DESTINATION_DIR=SOURCE_DIR
 
 if sys.version[0] == '2':
@@ -69,7 +70,7 @@ def printAndOrLog(stringToProcess,log=True):
         writeToLog(stringToProcess)
 
 def writeToLog(stringToWrite=""):
-    log_path = get_path(SOURCE_DIR,ext=b'log')
+    log_path = get_path(SOURCE_DIR_PATH,ext=b'log')
     stringToWrite = cleanString(stringToWrite)
     try:
         with open(log_path, 'a') as logFile:
@@ -100,9 +101,9 @@ def sendMail(stringToSend="", log=1, verbosity=1, subject=""):
 
 def writeToSFV(stringToWrite="", sfv=""):
     if (sfv == "MD5"):
-        sfv_path = get_path(SOURCE_DIR,ext=b'md5')
+        sfv_path = get_path(SOURCE_DIR_PATH,ext=b'md5')
     elif (sfv == "SFV"):
-        sfv_path = get_path(SOURCE_DIR,ext=b'sfv')
+        sfv_path = get_path(SOURCE_DIR_PATH,ext=b'sfv')
     try:
         with open(sfv_path, 'a') as sfvFile:
             sfvFile.write(stringToWrite)
@@ -468,11 +469,11 @@ class Bitrot(object):
     def run(self):
         check_sha512_integrity(verbosity=self.verbosity, log=self.log)
 
-        bitrot_sha512 = get_path(SOURCE_DIR,ext=b'sha512')
-        bitrot_log = get_path(SOURCE_DIR,ext=b'log')
-        bitrot_db = get_path(SOURCE_DIR,'db')
-        bitrot_sfv = get_path(SOURCE_DIR,ext=b'sfv')
-        bitrot_md5 = get_path(SOURCE_DIR,ext=b'md5')
+        bitrot_sha512 = get_path(SOURCE_DIR_PATH,ext=b'sha512')
+        bitrot_log = get_path(SOURCE_DIR_PATH,ext=b'log')
+        bitrot_db = get_path(SOURCE_DIR_PATH,'db')
+        bitrot_sfv = get_path(SOURCE_DIR_PATH,ext=b'sfv')
+        bitrot_md5 = get_path(SOURCE_DIR_PATH,ext=b'md5')
         progressCounter=0
 
         #bitrot_db = os.path.basename(get_path())
@@ -506,14 +507,13 @@ class Bitrot(object):
                 
         missing_paths = self.select_all_paths(cur)
 
-        destinationDirectory = SOURCE_DIR;
         if (SOURCE_DIR != DESTINATION_DIR):
-            os.chdir(destinationDirectory)
+            os.chdir(DESTINATION_DIR)
 
         if (self.fix >= 1):
             fixedRenameList, fixedRenameCounter = fix_existing_paths(
             #os.getcwd(),# pass an unambiguous string instead of: b'.'  
-            destinationDirectory,
+            SOURCE_DIR,
             verbosity=self.verbosity,
             log=self.log,
             fix=self.fix,
@@ -523,7 +523,7 @@ class Bitrot(object):
         )
 
         paths, total_size, ignoredList = list_existing_paths(
-            destinationDirectory,
+            SOURCE_DIR,
             expected=missing_paths, 
             ignored=[bitrot_db, bitrot_sha512,bitrot_log,bitrot_sfv,bitrot_md5] + self.exclude_list,
             included=self.include_list,
@@ -704,6 +704,7 @@ class Bitrot(object):
                         self.algorithm,p.encode(FSENCODING), stored_hash, new_hash, stored_ts),self.log)   
                 FIMErrorCounter += 1 
         if self.verbosity:    
+            format_custom_text.update_mapping(f="")
             bar.finish()
 
         if (self.email):
@@ -995,7 +996,7 @@ def stable_sum(bitrot_db=None):
     Useful for comparing if two directories hold the same data, as it ignores
     timing information."""
     if bitrot_db is None:
-        bitrot_db = get_path(SOURCE_DIR,'db')
+        bitrot_db = get_path(SOURCE_DIR_PATH,'db')
     digest = hashlib.sha512()
     conn = get_sqlite3_cursor(bitrot_db)
     cur = conn.cursor()
@@ -1007,11 +1008,11 @@ def stable_sum(bitrot_db=None):
     return digest.hexdigest()
 
 def check_sha512_integrity(verbosity=1, log=1):
-    sha512_path = get_path(SOURCE_DIR,ext=b'sha512')
+    sha512_path = get_path(SOURCE_DIR_PATH,ext=b'sha512')
     if not os.path.exists(sha512_path):
         return
 
-    bitrot_db = get_path(SOURCE_DIR,'db')
+    bitrot_db = get_path(SOURCE_DIR_PATH,'db')
     if not os.path.exists(bitrot_db):
         return
 
@@ -1054,7 +1055,7 @@ def check_sha512_integrity(verbosity=1, log=1):
 
 def update_sha512_integrity(verbosity=1, log=1):
     old_sha512 = 0
-    sha512_path = get_path(SOURCE_DIR,ext=b'sha512')
+    sha512_path = get_path(SOURCE_DIR_PATH,ext=b'sha512')
 
     if os.path.exists(sha512_path):
         try:
@@ -1064,7 +1065,7 @@ def update_sha512_integrity(verbosity=1, log=1):
         except Exception as err:
             printAndOrLog("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, err),log)
 
-    bitrot_db = get_path(SOURCE_DIR,'db')
+    bitrot_db = get_path(SOURCE_DIR_PATH,'db')
     digest = hashlib.sha512()
     try:
         with open(bitrot_db, 'rb') as f:
@@ -1112,6 +1113,7 @@ def run_from_command_line():
     global FSENCODING
     global SOURCE_DIR
     global DESTINATION_DIR
+    global SOURCE_DIR_PATH
     SOURCE_DIR='.'
     parser = argparse.ArgumentParser(prog='bitrot')
     parser.add_argument(
@@ -1254,6 +1256,7 @@ def run_from_command_line():
                 printAndOrLog('Using current directory for file list.',args.log)
         else:
             os.chdir(args.source)
+            SOURCE_DIR_PATH = args.source
             if verbosity:
                 printAndOrLog('Source directory \'{}\'.'.format(args.source),args.log)
     except Exception as err:
@@ -1280,7 +1283,7 @@ def run_from_command_line():
             printAndOrLog("Invalid Destination directory: \'{}\'. Using current directory. Received error: {}".format(args.destination, err),args.log) 
 
     if (args.log):
-        log_path = get_path(SOURCE_DIR,ext=b'log')
+        log_path = get_path(SOURCE_DIR_PATH,ext=b'log')
         if (verbosity):
             if os.path.exists(log_path):
                 writeToLog('\n======================================================\n')
@@ -1352,8 +1355,8 @@ def run_from_command_line():
                 algorithm = DEFAULT_HASH_FUNCTION
         else:
             algorithm = DEFAULT_HASH_FUNCTION
-        sfv_path = get_path(SOURCE_DIR,ext=b'sfv')
-        md5_path = get_path(SOURCE_DIR,ext=b'md5')
+        sfv_path = get_path(SOURCE_DIR_PATH,ext=b'sfv')
+        md5_path = get_path(SOURCE_DIR_PATH,ext=b'md5')
         try:
             os.remove(sfv_path)
         except Exception as err:
