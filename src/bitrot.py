@@ -381,10 +381,10 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=1, fix=5, warnin
                     #os.chdir(root)
                     #fullfilename=os.path.abspath(f)
                     #os.rename(f, cleanString(f))  # relative path, more elegant
-                    p_uniBackup = f
+                    pBackup = f
                     if (fix == 4) or (fix == 6):
                         os.rename(os.path.join(root, f), os.path.join(root, cleanString(f)))
-                    p_uni = cleanString(f)
+                    p = cleanString(f)
 
                 except Exception as ex:
                     warnings.append(f)
@@ -393,8 +393,8 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=1, fix=5, warnin
                 else:
                     fixedRenameList.append([])
                     fixedRenameList.append([])
-                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, p_uniBackup))
-                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, p_uni))
+                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, pBackup))
+                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, p))
                     fixedRenameCounter += 1
                     if verbosity:
                         progressCounter+=1
@@ -406,11 +406,11 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=1, fix=5, warnin
                     # chdir before renaming
                     #os.chdir(root)
                     #fullfilename=os.path.abspath(d)
-                    p_uniBackup = d
+                    pBackup = d
                     if (fix == 4) or (fix == 6):
                         os.rename(os.path.join(root, d), os.path.join(root, cleanString(d)))
                     #os.rename(d, cleanString(d))  # relative path, more elegant
-                    p_uni = cleanString(d)
+                    pi = cleanString(d)
 
                 except Exception as ex:
                     warnings.append(d)
@@ -419,8 +419,8 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=1, fix=5, warnin
                 else:
                     fixedRenameList.append([])
                     fixedRenameList.append([])
-                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, p_uniBackup))
-                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, p_uni))
+                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, pBackup))
+                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, p))
                     fixedRenameCounter += 1
                     if verbosity:
                         progressCounter+=1
@@ -743,7 +743,7 @@ class Bitrot(object):
                     new_paths.append(p)
                 else:
                     renamed_paths.append((stored_path, p))
-                    missing_paths.discard(stored_path.encode(FSENCODING))
+                    missing_paths.discard(stored_path)
                 continue
             else:
                 existing_paths.append(p)
