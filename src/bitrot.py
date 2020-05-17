@@ -503,7 +503,7 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), ignored=(), included=
                 include_this = [fnmatch(file.encode(FSENCODING), wildcard) 
                                 for file in p.split(os.path.sep)
                                 for wildcard in included]              
-                if not stat.S_ISREG(st.st_mode) or any(exclude_this) or any([fnmatch(p.encode(FSENCODING), exc) for exc in ignored]) or (included and not any([fnmatch(p.encode(FSENCODING), exc) for exc in included]) and not any(include_this)):
+                if not stat.S_ISREG(st.st_mode) or any(exclude_this) or any([fnmatch(p_uni, exc) for exc in ignored]) or (included and not any([fnmatch(p_uni, exc) for exc in included]) and not any(include_this)):
                 #if not stat.S_ISREG(st.st_mode) or any([fnmatch(p, exc) for exc in ignored]):
                     ignoredList.append(p)
                     #if verbosity > 2:
@@ -829,7 +829,7 @@ class Bitrot(object):
                 warnings.append(p)
                 printAndOrLog('Warning: Cannot compute hash of {} [{}]'.format(
                             #p, errno.errorcode[e.args[0]]))
-                            p.encode(FSENCODING), errno.errorcode[e.args[0]]),self.log)
+                            p_uni, errno.errorcode[e.args[0]]),self.log)
                 continue
             cur.execute('SELECT mtime, hash, timestamp FROM bitrot WHERE '
                         'path=?', (normalize_path(p_uni.decode(FSENCODING)),))
@@ -864,7 +864,7 @@ class Bitrot(object):
                 emails.append([])
                 emails.append([])
                 emails[FIMErrorCounter].append(self.algorithm)
-                emails[FIMErrorCounter].append(p.encode(FSENCODING))
+                emails[FIMErrorCounter].append(p_uni)
                 emails[FIMErrorCounter].append(stored_hash)
                 emails[FIMErrorCounter].append(new_hash)
                 emails[FIMErrorCounter].append(stored_ts)
@@ -872,7 +872,7 @@ class Bitrot(object):
                         '\n\nError: {} mismatch for {}\nExpected: {}\nGot:      {}'
                         '\nLast good hash checked on {}'.format(
                         #p, stored_hash, new_hash, stored_ts
-                        self.algorithm,p.encode(FSENCODING), stored_hash, new_hash, stored_ts),self.log)   
+                        self.algorithm,p_uni, stored_hash, new_hash, stored_ts),self.log)   
                 FIMErrorCounter += 1 
         if self.verbosity:    
             format_custom_text.update_mapping(f="")
