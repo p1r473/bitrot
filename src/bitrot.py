@@ -64,24 +64,22 @@ if sys.version[0] == '2':
     str = type(u'text')
     # use \'bytes\' for bytestrings
 
-def sendMail(stringToSend="", log=True, verbosity=1, subject=""):
-    msg = MIMEText(stringToSend)
+def sendMail(log=True, verbosity=1, stringToSend="", subject=""):
+    MESSAGE = stringToSend
+    SUBJECT = subject
+    TEXT = MESSAGE
 
-    FROMADDR = 'DoesntMatter'
-    TOADDR  = 'REDACTED@gmail.com'
-    msg['To'] = email.utils.formataddr(('Recipient', 'recipient@gmail.com'))
-    msg['From'] = email.utils.formataddr(('REDACTED', 'DoesntMatter'))
-    USERNAME = 'REDACTED'
+    server = smtplib.SMTP('smtp.emailprovider.com', 587)
+    server.ehlo()
+    server.starttls()
+
+                        'Subject: %s' % SUBJECT,
+                        '', TEXT])
 
     try:
-        msg['Subject'] = subject
-        # The actual mail send
-        server = smtplib.SMTP('smtp.mail.com:587')
-        server.starttls()
-        server.sendmail(FROMADDR, TOADDR, msg.as_string())
-        server.quit()
     except Exception as err:
         printAndOrLog('Email sending error: {}'.format(err))
+    server.quit()
 
 def normalize_path(path):
     if FSENCODING == 'utf-8' or FSENCODING == 'UTF-8':
