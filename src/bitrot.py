@@ -65,22 +65,19 @@ if sys.version[0] == '2':
     str = type(u'text')
     # use \'bytes\' for bytestrings
 
-def sendMail(log=True, verbosity=1, stringToSend="", subject=""):
-    MESSAGE = stringToSend
-    SUBJECT = subject
-    TEXT = MESSAGE
-
-    server = smtplib.SMTP('smtp.emailprovider.com', 587)
-    server.ehlo()
-    server.starttls()
+def sendEmail(MESSAGE="", SUBJECT="", log=True, verbosity=1):
+    SERVER = smtplib.SMTP('smtp.emailprovider.com', 587)
+    
+    SERVER.ehlo()
+    SERVER.starttls()
 
                         'Subject: %s' % SUBJECT,
-                        '', TEXT])
+                        '', MESSAGE])
 
     try:
     except Exception as err:
         printAndOrLog('Email sending error: {}'.format(err))
-    server.quit()
+    SERVER.quit()
 
 def normalize_path(path):
     if FSENCODING == 'utf-8' or FSENCODING == 'UTF-8':
@@ -485,7 +482,7 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
         bar.finish()
     return fixedRenameList, fixedRenameCounter
 
-def list_existing_paths(directory=SOURCE_DIR, expected=(), ignored=(), included=(), 
+def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included=(), 
                         verbosity=1, follow_links=False, log=True, fix=0, normalize=False, warnings = ()):
     """list_existing_paths(b'/dir') -> ([path1, path2, ...], total_size)
 
@@ -493,14 +490,14 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), ignored=(), included=
     and their 'total_size'. If directory was a bytes object, so will be the returned
     paths.
 
-     Doesn't add entries listed in 'ignored'.  Doesn't add symlinks if
+     Doesn't add entries listed in 'excluded'.  Doesn't add symlinks if
     'follow_links' is False (the default).  All entries present in 'expected'
     must be files (can't be directories or symlinks).
     """
 
     paths = set()
     total_size = 0
-    ignoredList = []
+    excludedList = []
     progressCounter=0
     if verbosity:
         print("Mapping all files... Please wait...")
@@ -534,13 +531,13 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), ignored=(), included=
                 # so we could use 'dir*', '*2', '*.txt', etc. to exclude anything
                 exclude_this = [fnmatch(file.encode(FSENCODING), wildcard)
                                 for file in p.split(os.path.sep)
-                                for wildcard in ignored]
+                                for wildcard in excluded]
                 include_this = [fnmatch(file.encode(FSENCODING), wildcard)
                                 for file in p.split(os.path.sep)
                                 for wildcard in included]
-                if not stat.S_ISREG(st.st_mode) or any(exclude_this) or any([fnmatch(p_uni, exc) for exc in ignored]) or (included and not any([fnmatch(p_uni, exc) for exc in included]) and not any(include_this)):
-                #if not stat.S_ISREG(st.st_mode) or any([fnmatch(p, exc) for exc in ignored]):
-                    ignoredList.append(p)
+                if not stat.S_ISREG(st.st_mode) or any(exclude_this) or any([fnmatch(p_uni, exc) for exc in excluded]) or (included and not any([fnmatch(p_uni, exc) for exc in included]) and not any(include_this)):
+                #if not stat.S_ISREG(st.st_mode) or any([fnmatch(p, exc) for exc in excluded]):
+                    excludedList.append(p)
                     #if verbosity > 2:
                         #print('Ignoring file: {}'.format(p))
                         #print('Ignoring file: {}'.format(p.decode(FSENCODING)))
@@ -612,7 +609,7 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), ignored=(), included=
                     bar.update(progressCounter)
     if verbosity:
         bar.finish()
-    return paths, total_size, ignoredList
+    return paths, total_size, excludedList
 
 
 class CustomETA(progressbar.widgets.ETA):
@@ -733,10 +730,10 @@ class Bitrot(object):
             fixedRenameCounter = fixedRenameCounter
         )
 
-        paths, total_size, ignoredList = list_existing_paths(
+        paths, total_size, excludedList = list_existing_paths(
             SOURCE_DIR,
             expected=missing_paths, 
-            ignored=[bitrot_db, bitrot_sha512,bitrot_log,bitrot_sfv,bitrot_md5] + self.exclude_list,
+            excluded=[bitrot_db, bitrot_sha512,bitrot_log,bitrot_sfv,bitrot_md5] + self.exclude_list,
             included=self.include_list,
             follow_links=self.follow_links,
             verbosity=self.verbosity,
@@ -752,7 +749,7 @@ class Bitrot(object):
 
         #These are entries that have recently been excluded
         for path in missing_paths:
-            if (path in ignoredList):
+            if (path in excludedList):
                 temporary_paths.append(path)
         for path in temporary_paths:
             missing_paths.discard(path)
@@ -875,7 +872,7 @@ class Bitrot(object):
                 if p_uni == stored_path:
                     new_paths.append(p_uni)
                     missing_paths.discard(p_uni)
-                #elif not stat.S_ISREG(st.st_mode) or any(exclude_this) or any([fnmatch(p_uni, exc) for exc in ignored]) or (included and not any([fnmatch(p_uni, exc) for exc in included]) and not any(include_this)):
+                #elif not stat.S_ISREG(st.st_mode) or any(exclude_this) or any([fnmatch(p_uni, exc) for exc in excluded]) or (included and not any([fnmatch(p_uni, exc) for exc in included]) and not any(include_this)):
                 else:
                     renamed_paths.append((stored_path, p_uni))
                     missing_paths.discard(stored_path)
@@ -929,7 +926,7 @@ class Bitrot(object):
                 for i in range(0, FIMErrorCounter):
                     emailToSendString +="Error: {} mismatch for {} \nExpected: {}\nGot:      {}\n".format(emails[i][0],emails[i][1],emails[i][2],emails[i][3])
                     emailToSendString +="Last good hash checked on {}\n\n".format(emails[i][4])
-                sendMail(emailToSendString,log=self.log,verbosity=self.verbosity, subject="FIM Error")
+                sendEmail(MESSAGE=emailToSendString, SUBJECT="FIM Error", log=self.log,verbosity=self.verbosity)
             
         for path in missing_paths:
             cur.execute('DELETE FROM bitrot WHERE path=?', (path,))
@@ -951,7 +948,7 @@ class Bitrot(object):
                 renamed_paths,
                 missing_paths,
                 tooOldList,
-                ignoredList,
+                excludedList,
                 fixedRenameList,
                 fixedRenameCounter,
                 fixedPropertiesList,
@@ -1023,7 +1020,7 @@ class Bitrot(object):
 
     def report_done(
         self, total_size, all_count, error_count, warning_count, paths, existing_paths, new_paths, updated_paths,
-        renamed_paths, missing_paths, tooOldList, ignoredList, fixedRenameList, fixedRenameCounter,
+        renamed_paths, missing_paths, tooOldList, excludedList, fixedRenameList, fixedRenameCounter,
         fixedPropertiesList, fixedPropertiesCounter, log):
         """Print a report on what happened.  All paths should be Unicode here."""
 
@@ -1067,23 +1064,23 @@ class Bitrot(object):
                     printAndOrLog('{}'.format(path),log)
 
         if self.verbosity >= 4:
-            if (ignoredList):
-                if (len(ignoredList) == 1):
+            if (excludedList):
+                if (len(excludedList) == 1):
                     printAndOrLog("1 files excluded: ",log)
-                    for row in ignoredList:
+                    for row in excludedList:
                         printAndOrLog("{}".format(row),log)
                 else:
-                    printAndOrLog("{} files excluded: ".format(len(ignoredList)),log)
-                    for row in ignoredList:
+                    printAndOrLog("{} files excluded: ".format(len(excludedList)),log)
+                    for row in excludedList:
                         printAndOrLog("{}".format(row),log)
 
                 if (tooOldList):
                     if (len(tooOldList) == 1):
-                        printAndOrLog("1 non-recent files ignored: ",log)
+                        printAndOrLog("1 non-recent files excluded: ",log)
                         for row in tooOldList:
                             printAndOrLog("{}".format(row),log)
                     else:
-                        printAndOrLog("{} non-recent files ignored".format(len(tooOldList)),log)
+                        printAndOrLog("{} non-recent files excluded".format(len(tooOldList)),log)
                         for row in tooOldList:
                             printAndOrLog("{}".format(row),log)
 
@@ -1150,7 +1147,7 @@ class Bitrot(object):
                     printAndOrLog('  Added missing access or modification timestamp to {}'.format(fixedPropertiesList[i][0]),log)
             
                         
-        #if any((new_paths, updated_paths, missing_paths, renamed_paths, ignoredList, tooOldList)):
+        #if any((new_paths, updated_paths, missing_paths, renamed_paths, excludedList, tooOldList)):
         #    if (self.log):
         #        writeToLog('\n')
 
@@ -1411,8 +1408,8 @@ def run_from_command_line():
         'Level 1: Normal amount of verbosity.\n'
         'Level 2: List missing entries.\n'
         'Level 3: List missing, fixed, new, renamed, and updated entries.\n'
-        'Level 4: List missing, fixed, new, renamed, updated entries, and ignored files.\n'
-        'Level 5: List missing, fixed, new, renamed, updated entries, ignored files, and existing files\n.')
+        'Level 4: List missing, fixed, new, renamed, updated entries, and excluded files.\n'
+        'Level 5: List missing, fixed, new, renamed, updated entries, excluded files, and existing files\n.')
     parser.add_argument(
         '-n', '--normalize', action='store_true',
         help='Only allow one unique normalized file into the DB at a time.')
@@ -1461,9 +1458,9 @@ def run_from_command_line():
             elif (verbosity == 3):
                 printAndOrLog("Verbosity option selected: {}. List missing, fixed, new, renamed, and updated entries.".format(args.verbose),args.log)
             elif (verbosity == 4):
-                printAndOrLog("Verbosity option selected: {}. List missing, fixed, new, renamed, updated entries, and ignored files.".format(args.verbose),args.log)
+                printAndOrLog("Verbosity option selected: {}. List missing, fixed, new, renamed, updated entries, and excluded files.".format(args.verbose),args.log)
             elif (verbosity == 5):
-                printAndOrLog("Verbosity option selected: {}. List missing, fixed, new, renamed, updated entries, ignored files, and existing files.".format(args.verbose),args.log)
+                printAndOrLog("Verbosity option selected: {}. List missing, fixed, new, renamed, updated entries, excluded files, and existing files.".format(args.verbose),args.log)
             elif not (verbosity == 0) and not (verbosity == 1):
                 printAndOrLog("Invalid test option selected: {}. Using default level 1.".format(args.verbose),args.log)
                 verbosity = 1
