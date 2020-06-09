@@ -1043,15 +1043,15 @@ class Bitrot(object):
             if (all_count == 1):
                 printAndOrLog(
                     '\n1 entry in the database, {} existing, {} new, {} updated, '
-                    '{} renamed, {} missing, {} skipped, {} fixed'.format(
+                    '{} renamed, {} missing, {} skipped, {} excluded, {} fixed'.format(
                         len(existing_paths), len(new_paths), len(updated_paths),
-                        len(renamed_paths), len(missing_paths), len(tooOldList), totalFixed),log)
+                        len(renamed_paths), len(missing_paths), len(tooOldList), len(excludedList), totalFixed),log)
             else:
                 printAndOrLog(
                     '\n{} entries in the database, {} existing, {} new, {} updated, '
-                    '{} renamed, {} missing, {} skipped, {} fixed.'.format(
+                    '{} renamed, {} missing, {} skipped, {} excluded, {} fixed.'.format(
                         all_count, len(existing_paths), len(new_paths), len(updated_paths),
-                        len(renamed_paths), len(missing_paths), len(tooOldList), totalFixed),log)
+                        len(renamed_paths), len(missing_paths), len(tooOldList), len(excludedList), totalFixed),log)
 
         if self.verbosity >= 5:
             if (existing_paths):
@@ -1124,7 +1124,7 @@ class Bitrot(object):
 
                 missing_paths = sorted(missing_paths)
                 for path in missing_paths:
-                   printAndOrLog('{}'.format(path.decode(FSENCODING),log))
+                   printAndOrLog('{}'.format(path,log))
 
         if fixedRenameList:
             if ((self.fix == 4) or (self.fix == 6)) and (self.verbosity >= 1):
@@ -1491,7 +1491,7 @@ def run_from_command_line():
             print("Hash of {} is \n{}".format(SOURCE_DIR_PATH,stable_sum()))
             exit()
         except RuntimeError as e:
-            print(str(e).encode('utf8'), file=sys.stderr)
+            print(str(e), file=sys.stderr)
 
     test = 0
     if (args.test):
