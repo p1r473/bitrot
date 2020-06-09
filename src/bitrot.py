@@ -1585,6 +1585,7 @@ def run_from_command_line():
         algorithm = DEFAULT_HASH_FUNCTION
     sfv_path = get_path(SOURCE_DIR_PATH,ext=b'sfv')
     md5_path = get_path(SOURCE_DIR_PATH,ext=b'md5')
+
     try:
         os.remove(sfv_path)
     except Exception as err:
