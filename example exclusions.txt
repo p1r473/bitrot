@@ -1,0 +1,2 @@
+.\exampleFile1.txt
+.\Directory With Spaces\*.txt
