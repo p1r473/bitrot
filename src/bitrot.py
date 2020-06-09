@@ -82,20 +82,10 @@ def sendMail(log=True, verbosity=1, stringToSend="", subject=""):
     server.quit()
 
 def normalize_path(path):
-    try:
-        path_uni = path.decode(FSENCODING)
-    except UnicodeDecodeError:
-        binary_stderr = getattr(sys.stderr, 'buffer', sys.stderr)
-        warnings.append(p)
-        binary_stderr.write(b"\rWarning: cannot decode file name: ")
-        binary_stderr.write(path)
-        binary_stderr.write(b"\n")
-        printAndOrLog("Warning: cannot decode file name: {}".format(path),log)
-        path_uni = path
-        continue
-    if FSENCODING in ('utf-8', 'UTF-8'):
-        return unicodedata.normalize('NFKD', path_uni)
-    return path_uni
+    if FSENCODING == 'utf-8' or FSENCODING == 'UTF-8':
+        return unicodedata.normalize('NFKD', str(path))
+    else:
+        return path
 
 def printAndOrLog(stringToProcess,log=True):
     print(stringToProcess)
@@ -349,7 +339,6 @@ def ts():
     return datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S%z')
 
 def get_sqlite3_cursor(path, copy=False):
-    path = path.decode(FSENCODING)
     if copy:
         if not os.path.exists(path):
             raise ValueError("Error: bitrot database at {} does not exist.".format(path))
@@ -423,7 +412,7 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
                     fixedRenameList.append([])
                     fixedRenameList.append([])
                     fixedRenameList[fixedRenameCounter].append(os.path.join(root, pBackup))
-                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, p_uni))
+                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, p))
                     fixedRenameCounter += 1
                     if verbosity:
                         progressCounter+=1
@@ -480,7 +469,16 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), ignored=(), included=
     for path, _, files in os.walk("."):
         for f in files:
             p = os.path.join(path, f)
-            p_uni = normalize_path(p)
+            try:
+                p_uni = normalize_path(p).encode(FSENCODING)
+            except UnicodeDecodeError:
+                binary_stderr = getattr(sys.stderr, 'buffer', sys.stderr)
+                warnings.append(p)
+                binary_stderr.write(b"\rWarning: cannot decode file name: ")
+                binary_stderr.write(p)
+                binary_stderr.write(b"\n")
+                printAndOrLog("Warning: cannot decode file name: {}".format(p),log)
+                continue
 
             try:
                 if follow_links or p_uni in expected:
@@ -495,15 +493,15 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), ignored=(), included=
                 # ['dir1', 'dir2', 'file.txt']
                 # and match on any of these components
                 # so we could use 'dir*', '*2', '*.txt', etc. to exclude anything
-                exclude_this = [fnmatch(file.encode(FSENCODING), wildcard) 
+                exclude_this = [fnmatch(file.encode(FSENCODING), wildcard)
                                 for file in p.split(os.path.sep)
                                 for wildcard in ignored]
-                include_this = [fnmatch(file.encode(FSENCODING), wildcard) 
+                include_this = [fnmatch(file.encode(FSENCODING), wildcard)
                                 for file in p.split(os.path.sep)
-                                for wildcard in included]              
+                                for wildcard in included]
                 if not stat.S_ISREG(st.st_mode) or any(exclude_this) or any([fnmatch(p_uni, exc) for exc in ignored]) or (included and not any([fnmatch(p_uni, exc) for exc in included]) and not any(include_this)):
                 #if not stat.S_ISREG(st.st_mode) or any([fnmatch(p, exc) for exc in ignored]):
-                    ignoredList.append(p_uni)
+                    ignoredList.append(p)
                     #if verbosity > 2:
                         #print('Ignoring file: {}'.format(p))
                         #print('Ignoring file: {}'.format(p.decode(FSENCODING)))
@@ -514,7 +512,7 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), ignored=(), included=
                     if (normalize):
                         oldMatch = ""
                         for filePath in paths:
-                            if p_uni == normalize_path(filePath):
+                            if normalize_path(p) == normalize_path(filePath):
                                 oldMatch = filePath
                                 break
                         if oldMatch != "":
@@ -555,20 +553,20 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), ignored=(), included=
                             delta_old_atime_date = now_date - old_atime_date
 
                             if delta_new_mtime_date < delta_old_mtime_date:
-                                paths.add(p_uni)
+                                paths.add(p)
                                 paths.discard(filePath)
                                 total_size += st.st_size
                             elif delta_new_atime_date < delta_old_atime_date:
-                                paths.add(p_uni)
+                                paths.add(p)
                                 paths.discard(filePath)
                                 total_size += st.st_size
                             else:
                                 pass
                         else:
-                            paths.add(p_uni)
+                            paths.add(p)
                             total_size += st.st_size
                     else:
-                        paths.add(p_uni)
+                        paths.add(p)
                         total_size += st.st_size
                 if verbosity:
                     progressCounter+=1
@@ -667,15 +665,18 @@ class Bitrot(object):
         errors = []
         emails = []
         tooOldList = []
+        temporary_paths = []
         warnings = []
         fixedRenameList = []
         fixedRenameCounter = 0
         fixedPropertiesList = []
         fixedPropertiesCounter = 0
         current_size = 0
-                
+        
+
         missing_paths = self.select_all_paths(cur)
         hashes = self.select_all_hashes(cur)
+
 
         if (SOURCE_DIR != DESTINATION_DIR):
             os.chdir(DESTINATION_DIR)
@@ -706,6 +707,13 @@ class Bitrot(object):
 
         )
 
+        for path in missing_paths:
+            if (path.decode(FSENCODING) in ignoredList):
+                temporary_paths.append(path)
+        for path in temporary_paths:
+            missing_paths.discard(path)
+
+
         FIMErrorCounter = 0;
         if self.verbosity:
             print("Hashing all files... Please wait...")
@@ -721,7 +729,16 @@ class Bitrot(object):
                 ])
           
         for p in sorted(paths):
-            p_uni = normalize_path(p)
+            try:
+                p_uni = normalize_path(p).encode(FSENCODING)
+            except UnicodeDecodeError:
+                binary_stderr = getattr(sys.stderr, 'buffer', sys.stderr)
+                warnings.append(p)
+                binary_stderr.write(b"\rWarning: cannot decode file name: ")
+                binary_stderr.write(p)
+                binary_stderr.write(b"\n")
+                printAndOrLog("Warning: cannot decode file name: {}".format(p),log)
+                continue
 
             try:
                 st = os.stat(p)
@@ -730,7 +747,7 @@ class Bitrot(object):
                     # The file disappeared between listing existing paths and
                     # this run or is (temporarily?) locked with different
                     # permissions. We'll just skip it for now.
-                    warnings.append(p_uni)
+                    warnings.append(p)
                     #writeToLog('\nWarning: \'{}\' is currently unavailable for reading: {}'.format(p_uni, ex))
                     printAndOrLog('Warning: \'{}\' is currently unavailable for reading: {}'.format(p, ex),self.log)
                     continue
@@ -755,18 +772,18 @@ class Bitrot(object):
                 new_mtime = int(nowTime)
                 new_atime = int(nowTime)
                 if (self.fix  == 1) or (self.fix  == 5):
-                    warnings.append(p_uni)
-                    printAndOrLog('Warning: \'{}\' has an invalid access and modification date. Try running with -f to fix.'.format(p_uni),self.log)
+                    warnings.append(p)
+                    printAndOrLog('Warning: \'{}\' has an invalid access and modification date. Try running with -f to fix.'.format(p),self.log)
             elif not (new_mtime):
                 new_mtime = int(nowTime)
                 if (self.fix  == 1) or (self.fix  == 5):
-                    warnings.append(p_uni)
-                    printAndOrLog('Warning: \'{}\' has an invalid modification date. Try running with -f to fix.'.format(p_uni),self.log)
+                    warnings.append(p)
+                    printAndOrLog('Warning: \'{}\' has an invalid modification date. Try running with -f to fix.'.format(p),self.log)
             elif not (new_atime):
                 new_atime = int(nowTime)
                 if (self.fix  == 1) or (self.fix  == 5):
-                    warnings.append(p_uni)
-                    printAndOrLog('Warning: \'{}\' has an invalid access date. Try running with -f to fix.'.format(p_uni),self.log)
+                    warnings.append(p)
+                    printAndOrLog('Warning: \'{}\' has an invalid access date. Try running with -f to fix.'.format(p),self.log)
 
             b = datetime.datetime.fromtimestamp(new_mtime)
             c = datetime.datetime.fromtimestamp(new_atime)
@@ -775,7 +792,7 @@ class Bitrot(object):
                 delta = a - b
                 delta2= a - c
                 if (delta.days > self.recent or delta2.days > self.recent):
-                    tooOldList.append(p_uni)
+                    tooOldList.append(p)
                     missing_paths.discard(p_uni)
                     total_size -= st.st_size
                     continue
@@ -795,7 +812,7 @@ class Bitrot(object):
                     try:
                         os.utime(p, (new_atime,nowTime))
                     except Exception as ex:
-                        warnings.append(p_uni)
+                        warnings.append(p)
                         fixPropertyFailed = True
                         printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(p,ex),self.log)
             elif not (new_atime_orig):
@@ -812,17 +829,16 @@ class Bitrot(object):
                     if (self.fix  == 1) or (self.fix  == 5) or (self.fix  == 2) or (self.fix  == 6):
                             fixedPropertiesList.append([])
                             fixedPropertiesList.append([])
-                            fixedPropertiesList[fixedPropertiesCounter].append(p_uni)
+                            fixedPropertiesList[fixedPropertiesCounter].append(p)
                             fixedPropertiesCounter += 1
 
             current_size += st.st_size
             if self.verbosity:
-                format_custom_text.update_mapping(f=self.progressFormat(progressCounter,len(paths),p_uni))              
-
+                format_custom_text.update_mapping(f=self.progressFormat(progressCounter,len(paths),p)) 
             try:
                 new_hash = hash(p, self.chunk_size,self.algorithm,log=self.log,sfv=self.sfv)
             except (IOError, OSError) as e:
-                warnings.append(p_uni)
+                warnings.append(p)
                 printAndOrLog('Warning: Cannot compute hash of {} [{}]'.format(
                             #p, errno.errorcode[e.args[0]]))
                             p_uni, errno.errorcode[e.args[0]]),self.log)
@@ -831,20 +847,21 @@ class Bitrot(object):
 
             if p_uni not in missing_paths:
                 # We are not expecting this path, it wasn't in the database yet.
-                # It's either new or a rename. Let's handle that
+                # It's either new, a rename, or recently excluded. Let's handle that 
                 stored_path = self.handle_unknown_path(
-                    cur, p_uni, new_mtime, new_hash, paths, hashes
+                    cur, p_uni, new_mtime, new_hash, paths, hashes #JCPC
                 )
                 self.maybe_commit(conn)
-                if p_uni == normalize_path(stored_path):
-                    new_paths.append(p_uni)
+                if p_uni == stored_path:
+                    new_paths.append(p)
                     missing_paths.discard(p_uni)
+                #elif not stat.S_ISREG(st.st_mode) or any(exclude_this) or any([fnmatch(p_uni, exc) for exc in ignored]) or (included and not any([fnmatch(p_uni, exc) for exc in included]) and not any(include_this)):
                 else:
-                    renamed_paths.append((stored_path, p_uni))
+                    renamed_paths.append((stored_path, p))
                     missing_paths.discard(stored_path)
                 continue
             else:
-                existing_paths.append(p_uni)
+                existing_paths.append(p)
 
             # At this point we know we're seeing an expected file.
             missing_paths.discard(p_uni)
@@ -860,19 +877,19 @@ class Bitrot(object):
 
             stored_mtime, stored_hash, stored_ts = row
             if (int(stored_mtime) != new_mtime) and not (self.test == 2):
-                updated_paths.append(p_uni)
+                updated_paths.append(p)
                 cur.execute('UPDATE bitrot SET mtime=?, hash=?, timestamp=? '
                             'WHERE path=?',
-                            (new_mtime, new_hash, ts(), p_uni))
+                            (new_mtime, new_hash, ts(), p_uni)) #JCPC
                 self.maybe_commit(conn)
                 continue
 
             if stored_hash != new_hash:
-                errors.append(p_uni)
+                errors.append(p)
                 emails.append([])
                 emails.append([])
                 emails[FIMErrorCounter].append(self.algorithm)
-                emails[FIMErrorCounter].append(p_uni)
+                emails[FIMErrorCounter].append(p)
                 emails[FIMErrorCounter].append(stored_hash)
                 emails[FIMErrorCounter].append(new_hash)
                 emails[FIMErrorCounter].append(stored_ts)
@@ -963,7 +980,7 @@ class Bitrot(object):
         return result
 
     def progressFormat(self, currentPosition,totalPosition,current_path): 
-        current_path = cleanString(stringToClean=current_path.decode(FSENCODING))
+        current_path = cleanString(stringToClean=current_path) #JCPC
         terminal_size = shutil.get_terminal_size()
         cols = terminal_size.columns
         max_path_size =  int(shutil.get_terminal_size().columns/2)
@@ -1083,7 +1100,7 @@ class Bitrot(object):
 
                 missing_paths = sorted(missing_paths)
                 for path in missing_paths:
-                   printAndOrLog('{}'.format(path,log))
+                   printAndOrLog('{}'.format(path.decode(FSENCODING),log))
 
         if fixedRenameList:
             if ((self.fix == 4) or (self.fix == 6)) and (self.verbosity >= 1):
@@ -1113,30 +1130,39 @@ class Bitrot(object):
         if self.test and self.verbosity:
             printAndOrLog('Database file not updated on disk (test mode).',log)
 
-    def handle_unknown_path(self, cur, new_path, new_mtime, new_hash, paths, hashes):
-            """Either add a new entry to the database or update the existing entry
-            on rename.
-            Returns `new_path` if the entry was indeed new or the `stored_path` (e.g.
-            outdated path) if there was a rename.
-            """
-            try: # if the path isn't in the database
-                found = [path for path in hashes[new_hash] if path not in paths]
-                renamed = found.pop()
-                # update the path in the database
+    def handle_unknown_path(self, cur, new_path, new_mtime, new_hash, paths_uni, hashes):
+        """Either add a new entry to the database or update the existing entry
+        on rename.
+        `cur` is the database cursor. `new_path` is the new Unicode path.
+        `paths_uni` are Unicode paths seen on disk during this run of Bitrot.
+        `hashes` is a dictionary selected from the database, keys are hashes, values
+        are sets of Unicode paths that are stored in the DB under the given hash.
+        Returns `new_path` if the entry was indeed new or the `old_path` (e.g.
+        outdated path stored in the database for this hash) if there was a rename.
+        """
+
+        for old_path in hashes.get(new_hash, ()):
+            if old_path not in paths_uni:
+                # File of the same hash used to exist but no longer does.
+                # Let's treat `new_path` as a renamed version of that `old_path`.
                 cur.execute(
                     'UPDATE bitrot SET mtime=?, path=?, timestamp=? WHERE path=?',
-                    (new_mtime, normalize_path(new_path), ts(), normalize_path(renamed)),
+                    (new_mtime, new_path, ts(), old_path),
                 )
+                return old_path
 
-                return renamed
-            
-            # From hashes[new_hash] or found.pop() 
-            except (KeyError,IndexError):
-                cur.execute(
-                    'INSERT INTO bitrot VALUES (?, ?, ?, ?)',
-                    (normalize_path(new_path), new_mtime, new_hash, ts()),
-                )
-                return normalize_path(new_path)
+        else:
+            # Either we haven't found `new_sha1` at all in the database, or all
+            # currently stored paths for this hash still point to existing files.
+            # Let's insert a new entry for what appears to be a new file.
+            cur.execute(
+                'INSERT INTO bitrot VALUES (?, ?, ?, ?)',
+                (new_path, new_mtime, new_hash, ts()),
+            )
+            return new_path
+
+
+
 
 def get_path(directory=b'.', ext=b'db'):
     """Compose the path to the selected bitrot file."""
@@ -1438,7 +1464,7 @@ def run_from_command_line():
             print("Hash of {} is \n{}".format(SOURCE_DIR_PATH,stable_sum()))
             exit()
         except RuntimeError as e:
-            print(str(e).encode(FSENCODING), file=sys.stderr)
+            print(str(e).encode('utf8'), file=sys.stderr)
 
     test = 0
     if (args.test):
