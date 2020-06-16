@@ -60,6 +60,7 @@ DEFAULT_HASH_FUNCTION = "SHA512"
 SOURCE_DIR='.'
 SOURCE_DIR_PATH = '.'
 DESTINATION_DIR=SOURCE_DIR
+hashProgressCounter = 0
 
 if sys.version[0] == '2':
     str = type(u'text')
@@ -319,6 +320,22 @@ def calculateUnits(total_size = 0):
         return sizeUnits, total_size
 
 
+def progressFormat(current_path):
+    current_path = normalize_path(current_path)
+    terminal_size = shutil.get_terminal_size()
+    cols = terminal_size.columns
+    max_path_size =  int(shutil.get_terminal_size().columns/2)
+    if len(current_path) > max_path_size:
+        # show first half and last half, separated by ellipsis
+        # e.g. averylongpathnameaveryl...ameaverylongpathname
+        half_mps = (max_path_size - 3) // 2
+        current_path = current_path[:half_mps] + '...' + current_path[-half_mps:]
+    else:
+        # pad out with spaces, otherwise previous filenames won't be erased
+        current_path += ' ' * (max_path_size - len(current_path))
+    # current_path = current_path + '|'
+    return current_path
+
 
 def cleanString(stringToClean=""):
     #stringToClean=re.sub(r'[\\/*?:"<>|]',"",stringToClean)
@@ -337,9 +354,12 @@ def isDirtyString(stringToCheck=""):
 def ts():
     return datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S%z')
 
-def compute_one(path, chunk_size,algorithm="",log=True,sfv="",verbosity=True):
+def compute_one(path, numPaths, startTime, chunk_size,algorithm="",log=True,sfv="",verbosity=True):
     """Return a tuple with (unicode path, size, mtime, sha1). Takes a binary path."""
+    global hashProgressCounter
     p_uni = normalize_path(path)
+    hashProgressCounter = hashProgressCounter + 1        
+    print(f"{hashProgressCounter}/{numPaths} {hashProgressCounter/numPaths*100:0.1f}% Elapsed:{recordTimeElapsed(startTime)} {progressFormat(p_uni)}", end="\r")
 
     try:
         st = os.stat(path)
@@ -371,7 +391,7 @@ def compute_one(path, chunk_size,algorithm="",log=True,sfv="",verbosity=True):
             ),
             file=sys.stderr,
         )
-        raise BitrotException         
+        raise BitrotException 
 
     return p_uni, st.st_size, int(st.st_mtime), new_hash
 
@@ -422,9 +442,10 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
 #   Pass an unambiguous string into os.walk() as others have mentioned.
 #   Also note that topdown=False in os.walk() doesn't matter. Since you are not renaming directories, the directory structure will be invariant during os.walk().
     progressCounter=0
-    print("Scanning file and directory names to fix... Please wait...")
-    # if verbosity:
+    if verbosity:
     #         bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
+        print("Scanning file and directory names to fix... Please wait...")
+        start = time.time()
     for root, dirs, files in os.walk(directory, topdown=False):
         for f in files:
             if (isDirtyString(f)):
@@ -453,8 +474,9 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
                     fixedRenameCounter += 1
                     if verbosity:
                         progressCounter+=1
-                        bar.update(progressCounter)
-            
+                        print(f"Files:{progressCounter} Elapsed:{recordTimeElapsed(start)} {progressFormat(p)}", end="\r")
+                        # bar.update(progressCounter)
+        print("\n")
         for d in dirs:
             if (isDirtyString(d)):
                 try:
@@ -482,6 +504,7 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
     #                     bar.update(progressCounter)
     # if verbosity:
     #     bar.finish()
+    
     return fixedRenameList, fixedRenameCounter
 
 def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included=(), 
@@ -503,6 +526,7 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
     progressCounter=0
     if verbosity:
         print("Mapping all files... Please wait...")
+        start = time.time()
         # bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
     for path, _, files in os.walk("."):
         for f in files:
@@ -607,11 +631,13 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                     # else:
                     paths.add(p)
                     total_size += st.st_size
-    #             if verbosity:
-    #                 progressCounter+=1
-    #                 bar.update(progressCounter)
+                if verbosity:
+                    progressCounter+=1
+                    print(f"Files:{progressCounter} Elapsed:{recordTimeElapsed(start)} {progressFormat(p)}", end="\r")
+    #               bar.update(progressCounter)
     # if verbosity:
     #     bar.finish()
+    print("\n")
     return paths, total_size, excludedList
 
 
@@ -684,7 +710,7 @@ class Bitrot(object):
         bitrot_db = get_path(SOURCE_DIR_PATH,b'db')
         bitrot_sfv = get_path(SOURCE_DIR_PATH,ext=b'sfv')
         bitrot_md5 = get_path(SOURCE_DIR_PATH,ext=b'md5')
-        progressCounter=0
+        global hashProgressCounter
 
 
         #bitrot_db = os.path.basename(get_path())
@@ -763,10 +789,10 @@ class Bitrot(object):
         #     CustomETA(format_not_started='%(value)2d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format_finished='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s|ETA:%(eta)8s', format_zero='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format_NA='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s'),
         #     progressbar.Bar(marker='#', left='|', right='|', fill=' ', fill_left=True),               
         #     ])
+        start = time.time()
+        futures = [self.pool.submit(compute_one, p, len(paths), start, self.chunk_size,self.algorithm,log=self.log,sfv=self.sfv, verbosity=self.verbosity) for p in paths]
 
-
-        futures = [self.pool.submit(compute_one, p, self.chunk_size,self.algorithm,log=self.log,sfv=self.sfv, verbosity=self.verbosity) for p in paths]
-
+        print("\n")
         #These are missing entries that have recently been excluded
         for path in missing_paths:
             if (path in excludedList):
@@ -775,7 +801,9 @@ class Bitrot(object):
             missing_paths.discard(path)
             cur.execute('DELETE FROM bitrot WHERE path=?', (path,))
 
-          
+        if self.verbosity:
+            print("Processing all files... Please wait...")
+
         for future in as_completed(futures):
             try:
                 p_uni, new_size, new_mtime, new_hash = future.result()
@@ -867,7 +895,7 @@ class Bitrot(object):
             current_size += new_size
 
             # if self.verbosity:  
-            #     format_custom_text.update_mapping(f=self.progressFormat(progressCounter,len(paths),p_uni))
+            #     format_custom_text.update_mapping(f=self.progressFormat(p_uni))
 
             if p_uni not in missing_paths:
                 # We are not expecting this path, it wasn't in the database yet.
@@ -970,7 +998,8 @@ class Bitrot(object):
         update_sha512_integrity(verbosity=self.verbosity, log=self.log)
 
         if self.verbosity:
-            recordTimeElapsed(startTime = self.startTime, log = self.log)
+            printAndOrLog("Time elapsed: " + recordTimeElapsed(startTime = self.startTime))
+            
 
         # if warnings:
         #     if len(warnings) == 1:
@@ -1009,22 +1038,6 @@ class Bitrot(object):
             row = cur.fetchone()
         return result
 
-    def progressFormat(self, currentPosition,totalPosition,current_path):
-        current_path = cleanString(stringToClean=current_path)
-        terminal_size = shutil.get_terminal_size()
-        cols = terminal_size.columns
-        max_path_size =  int(shutil.get_terminal_size().columns/2)
-        if len(current_path) > max_path_size:
-            # show first half and last half, separated by ellipsis
-            # e.g. averylongpathnameaveryl...ameaverylongpathname
-            half_mps = (max_path_size - 3) // 2
-            current_path = current_path[:half_mps] + '...' + current_path[-half_mps:]
-        else:
-            # pad out with spaces, otherwise previous filenames won't be erased
-            current_path += ' ' * (max_path_size - len(current_path))
-        current_path = current_path + '|'
-        return current_path
-
     def report_done(
         self, total_size, all_count, error_count, warning_count, paths, existing_paths, new_paths, updated_paths,
         renamed_paths, missing_paths, tooOldList, excludedList, fixedRenameList, fixedRenameCounter,
@@ -1033,7 +1046,7 @@ class Bitrot(object):
 
         sizeUnits , total_size = calculateUnits(total_size=total_size)
         totalFixed = fixedRenameCounter + fixedPropertiesCounter
-
+        print("\n")
         printAndOrLog('Finished. {:.2f} {} of data read.'.format(total_size,sizeUnits),log)
         
         if (error_count == 1):
@@ -1316,27 +1329,36 @@ def update_sha512_integrity(verbosity=1, log=True):
         if verbosity:
             printAndOrLog('done.',log)
 
-def recordTimeElapsed(startTime=0, log=True):
+def recordTimeElapsed(startTime=0):
     elapsedTime = (time.time() - startTime)  
-    if (elapsedTime > 3600):
+    if (elapsedTime > 86400):
+        elapsedTime /= 86400
+        # if (elapsedTime >= 1.0) and (elapsedTime < 1.1):
+        #     units = " days"
+        # else:
+        units = "days"
+
+    elif (elapsedTime > 3600):
         elapsedTime /= 3600
-        if ((int)(elapsedTime) == 1):
-            printAndOrLog('Time elapsed: 1 hour.',log)
-        else:
-            printAndOrLog('Time elapsed: {:.1f} hours.'.format(elapsedTime),log)
+        # if (elapsedTime >= 1.0) and (elapsedTime < 1.1):
+        #     units = " hours"
+        # else:
+        units = "hr"
 
     elif (elapsedTime > 60):
         elapsedTime /= 60
-        if ((int)(elapsedTime) == 1):
-            printAndOrLog('Time elapsed: 1 minute.',log)
-        else:
-            printAndOrLog('Time elapsed: {:.0f} minutes.'.format(elapsedTime),log)
+        # if (elapsedTime >= 1.0) and (elapsedTime < 1.1):
+        #     units = " minutes"
+        # else:
+        units = "min"
 
     else:
-        if ((int)(elapsedTime) == 1):
-            printAndOrLog('Time elapsed: 1 second.',log)
-        else:
-            printAndOrLog('Time elapsed: {:.1f} seconds.'.format(elapsedTime),log)
+        # if (elapsedTime >= 1.0) and (elapsedTime < 1.1):
+        #     units = " seconds"
+        # else:
+        units = "sec"
+
+    return "{:.1f}".format(elapsedTime) + units
 
 def run_from_command_line():
     global FSENCODING
