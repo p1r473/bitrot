@@ -40,7 +40,7 @@ import stat
 import sys
 import tempfile
 import time
-import progressbar
+# import progressbar
 import smtplib
 from fnmatch import fnmatch
 import email.utils
@@ -333,12 +333,14 @@ def isDirtyString(stringToCheck=""):
     else:
         return True
 
+
 def ts():
     return datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S%z')
 
-def compute_one(path, chunk_size,algorithm="",log=True,sfv=""):
+def compute_one(path, chunk_size,algorithm="",log=True,sfv="",verbosity=True):
     """Return a tuple with (unicode path, size, mtime, sha1). Takes a binary path."""
     p_uni = normalize_path(path)
+
     try:
         st = os.stat(path)
     except OSError as ex:
@@ -369,7 +371,7 @@ def compute_one(path, chunk_size,algorithm="",log=True,sfv=""):
             ),
             file=sys.stderr,
         )
-        raise BitrotException
+        raise BitrotException         
 
     return p_uni, st.st_size, int(st.st_mtime), new_hash
 
@@ -421,8 +423,8 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
 #   Also note that topdown=False in os.walk() doesn't matter. Since you are not renaming directories, the directory structure will be invariant during os.walk().
     progressCounter=0
     print("Scanning file and directory names to fix... Please wait...")
-    if verbosity:
-            bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
+    # if verbosity:
+    #         bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
     for root, dirs, files in os.walk(directory, topdown=False):
         for f in files:
             if (isDirtyString(f)):
@@ -475,15 +477,15 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
                     fixedRenameList[fixedRenameCounter].append(os.path.join(root, pBackup))
                     fixedRenameList[fixedRenameCounter].append(os.path.join(root, pi))
                     fixedRenameCounter += 1
-                    if verbosity:
-                        progressCounter+=1
-                        bar.update(progressCounter)
-    if verbosity:
-        bar.finish()
+    #                 if verbosity:
+    #                     progressCounter+=1
+    #                     bar.update(progressCounter)
+    # if verbosity:
+    #     bar.finish()
     return fixedRenameList, fixedRenameCounter
 
 def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included=(), 
-                        verbosity=1, follow_links=False, log=True, fix=0, normalize=False, warnings = ()):
+                        verbosity=1, follow_links=False, log=True, fix=0, warnings = ()): #normalize=False,
     """list_existing_paths(b'/dir') -> ([path1, path2, ...], total_size)
 
     Returns a tuple with a set of existing files in 'directory' and its subdirectories
@@ -501,7 +503,7 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
     progressCounter=0
     if verbosity:
         print("Mapping all files... Please wait...")
-        bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
+        # bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
     for path, _, files in os.walk("."):
         for f in files:
             p = os.path.join(path, f)
@@ -538,6 +540,7 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                 if not stat.S_ISREG(st.st_mode) or any(exclude_this) or any([fnmatch(p_uni, exc) for exc in excluded]) or (included and not any([fnmatch(p_uni, exc) for exc in included]) and not any(include_this)):
                 #if not stat.S_ISREG(st.st_mode) or any([fnmatch(p, exc) for exc in excluded]):
                     excludedList.append(p)
+
                     #if verbosity > 2:
                         #print('Ignoring file: {}'.format(p))
                         #print('Ignoring file: {}'.format(p.decode(FSENCODING)))
@@ -545,96 +548,96 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                             #writeToLog("\nIgnoring file: {}".format(p))
                             #writeToLog("\nIgnoring file: {}".format(p.decode(FSENCODING)))
                 else:
-                    if (normalize):
-                        oldMatch = ""
-                        for filePath in paths:
-                            if normalize_path(p) == normalize_path(filePath):
-                                oldMatch = filePath
-                                break
-                        if oldMatch != "":
-                            oldFile = os.stat(oldMatch)
-                            #new_mtime = int(st.st_mtime) JCPC
-                            old_mtime = int(oldFile.st_mtime)
-                            new_atime = int(st.st_atime)
-                            old_atime = int(oldFile.st_atime)
-                            now_date = datetime.datetime.now()
-                            if not new_mtime or not new_atime:
-                                nowTime = time.mktime(now_date.timetuple())
-                            if not old_mtime or not old_atime:
-                                nowTime = time.mktime(now_date.timetuple())
-                            if not new_mtime and not new_atime:
-                                new_mtime = int(nowTime)
-                                new_atime = int(nowTime)
-                            elif not (new_mtime):
-                                new_mtime = int(nowTime)
-                            elif not (new_atime):
-                                new_atime = int(nowTime)
-                            if not old_mtime and not old_atime:
-                                old_mtime = int(nowTime)
-                                old_atime = int(nowTime)
-                            elif not (old_mtime):
-                                old_mtime = int(nowTime)
-                            elif not (old_atime):
-                                old_atime = int(nowTime)
+                    # if (normalize):
+                    #     oldMatch = ""
+                    #     for filePath in paths:
+                    #         if normalize_path(p) == normalize_path(filePath):
+                    #             oldMatch = filePath
+                    #             break
+                    #     if oldMatch != "":
+                    #         oldFile = os.stat(oldMatch)
+                    #         #new_mtime = int(st.st_mtime) JCPC
+                    #         old_mtime = int(oldFile.st_mtime)
+                    #         new_atime = int(st.st_atime)
+                    #         old_atime = int(oldFile.st_atime)
+                    #         now_date = datetime.datetime.now()
+                    #         if not new_mtime or not new_atime:
+                    #             nowTime = time.mktime(now_date.timetuple())
+                    #         if not old_mtime or not old_atime:
+                    #             nowTime = time.mktime(now_date.timetuple())
+                    #         if not new_mtime and not new_atime:
+                    #             new_mtime = int(nowTime)
+                    #             new_atime = int(nowTime)
+                    #         elif not (new_mtime):
+                    #             new_mtime = int(nowTime)
+                    #         elif not (new_atime):
+                    #             new_atime = int(nowTime)
+                    #         if not old_mtime and not old_atime:
+                    #             old_mtime = int(nowTime)
+                    #             old_atime = int(nowTime)
+                    #         elif not (old_mtime):
+                    #             old_mtime = int(nowTime)
+                    #         elif not (old_atime):
+                    #             old_atime = int(nowTime)
 
-                            new_mtime_date = datetime.datetime.fromtimestamp(new_mtime)
-                            new_atime_date = datetime.datetime.fromtimestamp(new_atime)
-                            old_mtime_date = datetime.datetime.fromtimestamp(old_mtime)
-                            old_atime_date = datetime.datetime.fromtimestamp(old_atime)
+                    #         new_mtime_date = datetime.datetime.fromtimestamp(new_mtime)
+                    #         new_atime_date = datetime.datetime.fromtimestamp(new_atime)
+                    #         old_mtime_date = datetime.datetime.fromtimestamp(old_mtime)
+                    #         old_atime_date = datetime.datetime.fromtimestamp(old_atime)
 
-                            delta_new_mtime_date = now_date - new_mtime_date
-                            delta_new_atime_date = now_date - new_atime_date
+                    #         delta_new_mtime_date = now_date - new_mtime_date
+                    #         delta_new_atime_date = now_date - new_atime_date
 
-                            delta_old_mtime_date = now_date - old_mtime_date
-                            delta_old_atime_date = now_date - old_atime_date
+                    #         delta_old_mtime_date = now_date - old_mtime_date
+                    #         delta_old_atime_date = now_date - old_atime_date
 
-                            if delta_new_mtime_date < delta_old_mtime_date:
-                                paths.add(p)
-                                paths.discard(filePath)
-                                total_size += st.st_size
-                            elif delta_new_atime_date < delta_old_atime_date:
-                                paths.add(p)
-                                paths.discard(filePath)
-                                total_size += st.st_size
-                            else:
-                                pass
-                        else:
-                            paths.add(p)
-                            total_size += st.st_size
-                    else:
-                        paths.add(p)
-                        total_size += st.st_size
-                if verbosity:
-                    progressCounter+=1
-                    bar.update(progressCounter)
-    if verbosity:
-        bar.finish()
+                    #         if delta_new_mtime_date < delta_old_mtime_date:
+                    #             paths.add(p)
+                    #             paths.discard(filePath)
+                    #             total_size += st.st_size
+                    #         elif delta_new_atime_date < delta_old_atime_date:
+                    #             paths.add(p)
+                    #             paths.discard(filePath)
+                    #             total_size += st.st_size
+                    #         else:
+                    #             pass
+                    #     else:
+                    #         paths.add(p)
+                    #         total_size += st.st_size
+                    # else:
+                    paths.add(p)
+                    total_size += st.st_size
+    #             if verbosity:
+    #                 progressCounter+=1
+    #                 bar.update(progressCounter)
+    # if verbosity:
+    #     bar.finish()
     return paths, total_size, excludedList
 
 
-class CustomETA(progressbar.widgets.ETA):
+# class CustomETA(progressbar.widgets.ETA):
 
-    def __call__(self, progress, data):
-        # Run 'ETA.__call__' to update 'data'. This adds the 'eta_seconds'
-        formatted = progressbar.widgets.ETA.__call__(self, progress, data)
+#     def __call__(self, progress, data):
+#         # Run 'ETA.__call__' to update 'data'. This adds the 'eta_seconds'
+#         formatted = progressbar.widgets.ETA.__call__(self, progress, data)
 
-        # ETA might not be available, if the maximum length is not available
-        # for example
-        if data.get('eta'):
-            # By using divmod we can split the timedelta to hours and the
-            # remaining timedelta
-            hours, delta = divmod(
-                timedelta(seconds=int(data['eta_seconds'])),
-                timedelta(hours=1),
-            )
-            data['eta'] = ' {hours}{delta_truncated}'.format(
-                hours=hours,
-                # Strip the 0 hours from the timedelta
-                delta_truncated=str(delta).lstrip('0'),
-            )
-            return progressbar.widgets.Timer.__call__(self, progress, data, format=self.format)
-        else:
-            return formatted
+#         # ETA might not be available, if the maximum length is not available
+#         # for example
+#         if data.get('eta'):
+#             # By using divmod we can split the timedelta to hours and the
+#             # remaining timedelta
+#             hours, delta = divmod(
+#                 timedelta(seconds=int(data['eta_seconds'])),
+#                 timedelta(hours=1),
+#             )
+#             data['eta'] = ' {hours}{delta_truncated}'.format(
+#                 hours=hours,
+#                 # Strip the 0 hours from the timedelta
+#                 delta_truncated=str(delta).lstrip('0'),
+#             )
+#             return progressbar.widgets.Timer.__call__(self, progress, data, format=self.format)
+#         else:
+#             return formatted
 
 
 class BitrotException(Exception):
@@ -673,6 +676,7 @@ class Bitrot(object):
         self._last_commit_ts = time.time()
 
     def run(self):
+
         check_sha512_integrity(verbosity=self.verbosity, log=self.log)
 
         bitrot_sha512 = get_path(SOURCE_DIR_PATH,ext=b'sha512')
@@ -739,15 +743,31 @@ class Bitrot(object):
             verbosity=self.verbosity,
             log=self.log,
             fix=self.fix,
-            normalize=self.normalize,
+            # normalize=self.normalize,
             warnings=warnings,
 
         )
-
+        FIMErrorCounter = 0;
         paths_uni = set(normalize_path(p) for p in paths)
-        futures = [self.pool.submit(compute_one, p, self.chunk_size,self.algorithm,log=self.log,sfv=self.sfv) for p in paths]
 
-        #These are entries that have recently been excluded
+        if self.verbosity:
+            print("Hashing all files... Please wait...")
+        # format_custom_text = progressbar.FormatCustomText(
+        #     '%(f)s',
+        #     dict(
+        #         f='',
+        #     )
+        # )
+        # global bar
+        # bar = progressbar.ProgressBar(max_value=len(paths),widgets=[format_custom_text,
+        #     CustomETA(format_not_started='%(value)2d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format_finished='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s|ETA:%(eta)8s', format_zero='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format_NA='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s'),
+        #     progressbar.Bar(marker='#', left='|', right='|', fill=' ', fill_left=True),               
+        #     ])
+
+
+        futures = [self.pool.submit(compute_one, p, self.chunk_size,self.algorithm,log=self.log,sfv=self.sfv, verbosity=self.verbosity) for p in paths]
+
+        #These are missing entries that have recently been excluded
         for path in missing_paths:
             if (path in excludedList):
                 temporary_paths.append(path)
@@ -755,20 +775,6 @@ class Bitrot(object):
             missing_paths.discard(path)
             cur.execute('DELETE FROM bitrot WHERE path=?', (path,))
 
-
-        FIMErrorCounter = 0;
-        if self.verbosity:
-            print("Hashing all files... Please wait...")
-            format_custom_text = progressbar.FormatCustomText(
-                '%(f)s',
-                dict(
-                    f='',
-                )
-            )
-            bar = progressbar.ProgressBar(max_value=len(paths),widgets=[format_custom_text,
-                CustomETA(format_not_started='%(value)2d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format_finished='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s|ETA:%(eta)8s', format_zero='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format_NA='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s'),
-                progressbar.Bar(marker='#', left='|', right='|', fill=' ', fill_left=True),               
-                ])
           
         for future in as_completed(futures):
             try:
@@ -778,9 +784,10 @@ class Bitrot(object):
             except BitrotException:
                 continue
 
-            if self.verbosity:
-                progressCounter+=1
-                bar.update(progressCounter) 
+            # if self.verbosity:  
+            #     progressCounter+=1  
+            #     bar.update(progressCounter) 
+            
             new_mtime = int(st.st_mtime)
             new_atime = int(st.st_atime)
             new_mtime_orig = new_mtime
@@ -859,8 +866,8 @@ class Bitrot(object):
 
             current_size += new_size
 
-            if self.verbosity:
-                format_custom_text.update_mapping(f=self.progressFormat(progressCounter,len(paths),p_uni)) 
+            # if self.verbosity:  
+            #     format_custom_text.update_mapping(f=self.progressFormat(progressCounter,len(paths),p_uni))
 
             if p_uni not in missing_paths:
                 # We are not expecting this path, it wasn't in the database yet.
@@ -916,9 +923,9 @@ class Bitrot(object):
                         #p, stored_hash, new_hash, stored_ts
                         self.algorithm,p_uni, stored_hash, new_hash, stored_ts),self.log)   
                 FIMErrorCounter += 1 
-        if self.verbosity:    
-            format_custom_text.update_mapping(f="")
-            bar.finish()
+        # if self.verbosity:    
+        #     format_custom_text.update_mapping(f="")
+        #     bar.finish()
 
         if (self.email):
             if (FIMErrorCounter >= 1):
@@ -1410,9 +1417,9 @@ def run_from_command_line():
         'Level 3: List missing, fixed, new, renamed, and updated entries.\n'
         'Level 4: List missing, fixed, new, renamed, updated entries, and excluded files.\n'
         'Level 5: List missing, fixed, new, renamed, updated entries, excluded files, and existing files\n.')
-    parser.add_argument(
-        '-n', '--normalize', action='store_true',
-        help='Only allow one unique normalized file into the DB at a time.')
+    # parser.add_argument(
+    #     '-n', '--normalize', action='store_true',
+    #     help='Only allow one unique normalized file into the DB at a time.')
     parser.add_argument(
         '-e', '--email', default=1,
         help='email file integrity errors')
@@ -1622,10 +1629,10 @@ def run_from_command_line():
             printAndOrLog("Invalid recent option selected: {}. Processing all files, not just recent ones.".format(args.recent),args.log)
             recent = 0
  
-    normalize=False
-    if (args.normalize):
-        printAndOrLog("Only allowing one similarly named normalized file into the database.",args.log)
-        normalize=True
+    # normalize=False
+    # if (args.normalize):
+    #     printAndOrLog("Only allowing one similarly named normalized file into the database.",args.log)
+    #     normalize=True
 
     fix = 0
     if (args.fix):
@@ -1676,7 +1683,7 @@ def run_from_command_line():
         exclude_list = exclude_list,
         sfv = sfv,
         fix = fix,
-        normalize=normalize,
+        # normalize=normalize,
     )
     if args.fsencoding:
         FSENCODING = args.fsencoding
