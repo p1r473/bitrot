@@ -58,7 +58,6 @@ DEFAULT_HASH_FUNCTION = "SHA512"
 SOURCE_DIR='.'
 SOURCE_DIR_PATH = '.'
 DESTINATION_DIR=SOURCE_DIR
-hashProgressCounter = 0
 
 if sys.version[0] == '2':
     str = type(u'text')
@@ -655,8 +654,6 @@ class Bitrot(object):
         bitrot_db = get_path(SOURCE_DIR_PATH,b'db')
         bitrot_sfv = get_path(SOURCE_DIR_PATH,ext=b'sfv')
         bitrot_md5 = get_path(SOURCE_DIR_PATH,ext=b'md5')
-        global hashProgressCounter
-
 
         #bitrot_db = os.path.basename(get_path())
         #bitrot_sha512 = os.path.basename(get_path(ext=b'sha512'))
@@ -739,15 +736,13 @@ class Bitrot(object):
                 )
             )
             bar = progressbar.ProgressBar(max_value=len(paths),widgets=[format_custom_text,
-                CustomETA(format_not_started='%(value)2d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format_finished='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s|ETA:%(eta)8s', format_zero='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format_NA='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s'),
+                CustomETA(format_not_started='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s|ETA:%(eta)8s', format_finished='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s|ETA:%(eta)8s', format_zero='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format_NA='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s'),
                 progressbar.Bar(marker='#', left='|', right='|', fill=' ', fill_left=True),               
                 ])
         start = time.time()
 
         for pathIterator in sorted(paths):
             path = pathIterator #.decode(FSENCODING)
-            if self.verbosity:  
-                format_custom_text.update_mapping(f=self.progressFormat(path)) 
             try:
                 st = os.stat(path)
             except OSError as ex:
@@ -761,10 +756,6 @@ class Bitrot(object):
             except BitrotException:
                 continue
 
-
-            if self.verbosity:
-                progressCounter+=1
-                bar.update(progressCounter) 
             new_mtime = int(st.st_mtime)
             new_atime = int(st.st_atime)
             new_mtime_orig = new_mtime
@@ -842,9 +833,17 @@ class Bitrot(object):
                             fixedPropertiesCounter += 1
 
             current_size += st.st_size
-
+            progressCounter+=1
+            format_custom_text.update_mapping(f=self.progressFormat(path))
+            bar.update(progressCounter)
             try:
                 new_hash = hash(path, self.chunk_size,self.algorithm,log=self.log,sfv=self.sfv)
+                time.sleep(1.5)
+                #print("hashed {}".format(path))
+                
+                  
+                    
+
             except (IOError, OSError) as e:
                 warnings.append(path)
                 printAndOrLog('Warning: Cannot compute hash of {} [{}]'.format(
