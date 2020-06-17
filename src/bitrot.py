@@ -25,6 +25,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, wait, as_completed
 import argparse
 import atexit
 import datetime
@@ -585,7 +586,45 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
         bar.finish()
         print()
     return paths, total_size, excludedList
+def compute_one(path, chunk_size, algorithm="", follow_links=False, log=True,sfv=""):
+    """Return a tuple with (unicode path, size, mtime, sha1). Takes a binary path."""
 
+    try:
+        if os.path.islink(path):
+            if follow_links:
+                st = os.stat(path)
+            else:
+                st = os.lstat(path)
+        else:
+            st = os.lstat(path)
+
+    except OSError as ex:
+        if ex.errno in IGNORED_FILE_SYSTEM_ERRORS:
+            # The file disappeared between listing existing paths and
+            # this run or is (temporarily?) locked with different
+            # permissions. We'll just skip it for now.
+            print(
+                '\rwarning: `{}` is currently unavailable for '
+                'reading: {}'.format(
+                    path, ex,
+                ),
+                file=sys.stderr,
+            )
+            raise BitrotException
+
+        raise   # Not expected? https://github.com/ambv/bitrot/issues/
+
+    try:
+        new_hash = hash(path, chunk_size, algorithm, log, sfv)
+    except (IOError, OSError) as e:
+        print(
+            '\rwarning: cannot compute hash of {} [{}]'.format(
+                path, errno.errorcode[e.args[0]],
+            ),
+            file=sys.stderr,
+        )
+        raise BitrotException
+    return path, st.st_size, int(st.st_mtime), int(st.st_atime), new_hash
 
 class CustomETA(progressbar.widgets.ETA):
 
@@ -618,7 +657,7 @@ class BitrotException(Exception):
 class Bitrot(object):
     def __init__(
         self, verbosity=1, email = False, log = False, test=0, recent = 0, follow_links=False, commit_interval=300,
-        chunk_size=DEFAULT_CHUNK_SIZE, include_list=[], exclude_list=[], algorithm="", sfv="MD5", fix=0, normalize=False
+        chunk_size=DEFAULT_CHUNK_SIZE, workers=os.cpu_count(), include_list=[], exclude_list=[], algorithm="", sfv="MD5", fix=0, normalize=False
     ):
         self.verbosity = verbosity
         self.test = test
@@ -630,6 +669,7 @@ class Bitrot(object):
         self.exclude_list = exclude_list
         self._last_reported_size = ''
         self._last_commit_ts = 0
+        self.pool = ThreadPoolExecutor(max_workers=workers)
         self.email = email
         self.log = log
         self.startTime = time.time()
@@ -717,7 +757,9 @@ class Bitrot(object):
 
         )
         FIMErrorCounter = 0;
-        # paths_uni = set(normalize_path(path) for p in paths)
+        paths_set = set((pathIterator) for pathIterator in paths)
+        paths_set = sorted(paths_set)
+
 
         #These are missing entries that have recently been excluded
         for pathIterator in missing_paths:
@@ -741,23 +783,18 @@ class Bitrot(object):
                 ])
         start = time.time()
 
-        for pathIterator in sorted(paths):
-            path = pathIterator #.decode(FSENCODING)
+        #for pathIterator in sorted(paths):
+        #    path = pathIterator #.decode(FSENCODING)
+        futures = [self.pool.submit(compute_one, pathIterator, self.chunk_size, self.algorithm, self.follow_links, self.log, self.sfv) for pathIterator in paths_set]
+
+        for future in as_completed(futures):
             try:
-                st = os.stat(path)
-            except OSError as ex:
-                if ex.errno in IGNORED_FILE_SYSTEM_ERRORS:
-                    # The file disappeared between listing existing paths and
-                    # this run or is (temporarily?) locked with different
-                    # permissions. We'll just skip it for now.
-                    warnings.append(path)
-                    printAndOrLog('Warning: \'{}\' is currently unavailable for reading: {}'.format(path, ex),self.log)
-                    continue
+                path, new_size, new_mtime, new_atime, new_hash = future.result()
             except BitrotException:
                 continue
 
-            new_mtime = int(st.st_mtime)
-            new_atime = int(st.st_atime)
+            #new_mtime = int(st.st_mtime)
+            #new_atime = int(st.st_atime)
             new_mtime_orig = new_mtime
             new_atime_orig = new_atime
             a = datetime.datetime.now()
@@ -794,7 +831,7 @@ class Bitrot(object):
                 if (delta.days > self.recent or delta2.days > self.recent):
                     tooOldList.append(path)
                     missing_paths.discard(path)
-                    total_size -= st.st_size
+                    total_size -= new_size
                     continue
 
             fixPropertyFailed = False
@@ -832,24 +869,12 @@ class Bitrot(object):
                             fixedPropertiesList[fixedPropertiesCounter].append(path)
                             fixedPropertiesCounter += 1
 
-            current_size += st.st_size
-            progressCounter+=1
-            format_custom_text.update_mapping(f=self.progressFormat(path))
-            bar.update(progressCounter)
-            try:
-                new_hash = hash(path, self.chunk_size,self.algorithm,log=self.log,sfv=self.sfv)
-                time.sleep(1.5)
-                #print("hashed {}".format(path))
-                
-                  
-                    
-
-            except (IOError, OSError) as e:
-                warnings.append(path)
-                printAndOrLog('Warning: Cannot compute hash of {} [{}]'.format(
-                            #p, errno.errorcode[e.args[0]]))
-                            path, errno.errorcode[e.args[0]]),self.log)
-                continue
+            current_size += new_size
+            if self.verbosity:
+                progressCounter+=1
+                format_custom_text.update_mapping(f=self.progressFormat(path))
+                bar.update(progressCounter)
+            
 
             if path not in missing_paths:
                 # We are not expecting this path, it wasn't in the database yet.
@@ -1355,6 +1380,9 @@ def run_from_command_line():
         help='min time in seconds between commits '
              '(0 commits on every operation).')
     parser.add_argument(
+        '-w', '--workers', type=int, default=os.cpu_count(),
+        help='run this many workers (use -w1 for slow magnetic disks)')
+    parser.add_argument(
         '--chunk-size', type=int, default=DEFAULT_CHUNK_SIZE,
         help='read files this many bytes at a time.')
     parser.add_argument(
@@ -1430,6 +1458,7 @@ def run_from_command_line():
     parser.add_argument(
         '-d', '--destination', default='',
         help="Root of destination folder. Default is current directory.")
+
 
     args = parser.parse_args()
 
@@ -1664,6 +1693,7 @@ def run_from_command_line():
         follow_links = args.follow_links,
         commit_interval = args.commit_interval,
         chunk_size = args.chunk_size,
+        workers=args.workers,
         include_list = include_list,
         exclude_list = exclude_list,
         sfv = sfv,
