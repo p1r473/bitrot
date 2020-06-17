@@ -396,57 +396,57 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
         bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
         start = time.time()
     for root, dirs, files in os.walk(directory, topdown=False):
-        for f in files:
-            if (isDirtyString(f)):
+        for file in files:
+            if (isDirtyString(file)):
                 if (fix == 3) or (fix == 5):
-                    warnings.append(f)
-                    printAndOrLog('Warning: Invalid character detected in filename\'{}\''.format(os.path.join(root, f)),log)
+                    warnings.append(file)
+                    printAndOrLog('Warning: Invalid character detected in filename\'{}\''.format(os.path.join(root, file)),log)
                 try:
                     # chdir before renaming
                     #os.chdir(root)
-                    #fullfilename=os.path.abspath(f)
-                    #os.rename(f, cleanString(f))  # relative path, more elegant
-                    pBackup = f
+                    #fullfilename=os.path.abspath(file)
+                    #os.rename(f, cleanString(file))  # relative path, more elegant
+                    pathBackup = file
                     if (fix == 4) or (fix == 6):
-                        os.rename(os.path.join(root, f), os.path.join(root, cleanString(f)))
-                    p = cleanString(f)
+                        os.rename(os.path.join(root, f), os.path.join(root, cleanString(file)))
+                    path = cleanString(file)
 
                 except Exception as ex:
-                    warnings.append(f)
+                    warnings.append(file)
                     printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(os.path.join(root, f),ex),log)
                     continue
                 else:
                     fixedRenameList.append([])
                     fixedRenameList.append([])
-                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, pBackup))
-                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, p))
+                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, pathBackup))
+                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, path))
                     fixedRenameCounter += 1
                     if verbosity:
                         progressCounter+=1
                         # statusString = "Files:" + str(progressCounter) + " Elapsed:" + recordTimeElapsed(start) + " " + progressFormat(path)
                         # print_statusline(statusString,15)
                         bar.update(progressCounter)
-        for d in dirs:
-            if (isDirtyString(d)):
+        for directory in dirs:
+            if (isDirtyString(directory)):
                 try:
                     # chdir before renaming
                     #os.chdir(root)
                     #fullfilename=os.path.abspath(d)
-                    pBackup = d
+                    pathBackup = directory
                     if (fix == 4) or (fix == 6):
-                        os.rename(os.path.join(root, d), os.path.join(root, cleanString(d)))
+                        os.rename(os.path.join(root, directory), os.path.join(root, cleanString(d)))
                     #os.rename(d, cleanString(d))  # relative path, more elegant
-                    pi = cleanString(d)
+                    cleanedDirctory = cleanString(directory)
 
                 except Exception as ex:
                     warnings.append(d)
-                    printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(os.path.join(root, d),ex),log)
+                    printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(os.path.join(root, directory),ex),log)
                     continue
                 else:
                     fixedRenameList.append([])
                     fixedRenameList.append([])
-                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, pBackup))
-                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, pi))
+                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, pathBackup))
+                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, cleanedDirctory))
                     fixedRenameCounter += 1
                     if verbosity:
                         progressCounter+=1
@@ -746,6 +746,8 @@ class Bitrot(object):
 
         for pathIterator in sorted(paths):
             path = pathIterator #.decode(FSENCODING)
+            if self.verbosity:  
+                format_custom_text.update_mapping(f=self.progressFormat(path)) 
             try:
                 st = os.stat(path)
             except OSError as ex:
@@ -759,10 +761,10 @@ class Bitrot(object):
             except BitrotException:
                 continue
 
-            if self.verbosity:  
-                progressCounter+=1  
+
+            if self.verbosity:
+                progressCounter+=1
                 bar.update(progressCounter) 
-            
             new_mtime = int(st.st_mtime)
             new_atime = int(st.st_atime)
             new_mtime_orig = new_mtime
@@ -840,9 +842,6 @@ class Bitrot(object):
                             fixedPropertiesCounter += 1
 
             current_size += st.st_size
-
-            if self.verbosity:  
-                format_custom_text.update_mapping(f=self.progressFormat(path)) 
 
             try:
                 new_hash = hash(path, self.chunk_size,self.algorithm,log=self.log,sfv=self.sfv)
@@ -995,8 +994,7 @@ class Bitrot(object):
             row = cur.fetchone()
         return result
 
-    def progressFormat(self,current_path):
-        current_path = normalize_path(current_path)
+    def progressFormat(self,current_path): 
         terminal_size = shutil.get_terminal_size()
         cols = terminal_size.columns
         max_path_size =  int(shutil.get_terminal_size().columns/2)
@@ -1008,7 +1006,7 @@ class Bitrot(object):
         else:
             # pad out with spaces, otherwise previous filenames won't be erased
             current_path += ' ' * (max_path_size - len(current_path))
-        # current_path = current_path + '|'
+        current_path = current_path + '|'
         return current_path
 
     def report_done(
