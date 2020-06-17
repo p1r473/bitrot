@@ -562,16 +562,9 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                 include_this = [fnmatch(file.encode(FSENCODING), wildcard)
                                 for file in p.split(os.path.sep)
                                 for wildcard in included]
-                if not stat.S_ISREG(st.st_mode) or any(exclude_this) or any([fnmatch(p_uni, exc) for exc in excluded]) or (included and not any([fnmatch(p_uni, exc) for exc in included]) and not any(include_this)):
+                if not stat.S_ISREG(st.st_mode) or any(exclude_this) or any([fnmatch(p_uni, exc) for exc in excluded]) or (included and not any([fnmatch(p_uni, inc) for inc in included]) and not any(include_this)):
                 #if not stat.S_ISREG(st.st_mode) or any([fnmatch(p, exc) for exc in excluded]):
                     excludedList.append(p)
-
-                    #if verbosity > 2:
-                        #print('Ignoring file: {}'.format(p))
-                        #print('Ignoring file: {}'.format(p.decode(FSENCODING)))
-                        #if (log):
-                            #writeToLog("\nIgnoring file: {}".format(p))
-                            #writeToLog("\nIgnoring file: {}".format(p.decode(FSENCODING)))
                 else:
                     # if (normalize):
                     #     oldMatch = ""
