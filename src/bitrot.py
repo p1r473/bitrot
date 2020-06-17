@@ -481,7 +481,8 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
                     fixedRenameCounter += 1
                     if verbosity:
                         progressCounter+=1
-                        print(f'Files:{progressCounter} Elapsed:{recordTimeElapsed(start)} {progressFormat(p)}\r', end="", flush=True)
+                        statusString = "Files:" + str(progressCounter) + " Elapsed:" + recordTimeElapsed(start) + " " + progressFormat(p)
+                        print_statusline(statusString)
                         # bar.update(progressCounter)
         for d in dirs:
             if (isDirtyString(d)):
@@ -508,9 +509,9 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
     #                 if verbosity:
     #                     progressCounter+=1
     #                     bar.update(progressCounter)
-    # if verbosity:
+    if verbosity:
+        print()
     #     bar.finish()
-    
     return fixedRenameList, fixedRenameCounter
 
 def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included=(), 
@@ -639,8 +640,9 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                     statusString = "Files:" + str(progressCounter) + " Elapsed:" + recordTimeElapsed(start) + " " + progressFormat(p)
                     print_statusline(statusString)
     #               bar.update(progressCounter)
-    # if verbosity:
+    if verbosity:
     #     bar.finish()
+        print()
     return paths, total_size, excludedList
 
 
@@ -1050,6 +1052,7 @@ class Bitrot(object):
         sizeUnits , total_size = calculateUnits(total_size=total_size)
         totalFixed = fixedRenameCounter + fixedPropertiesCounter
         if self.verbosity >= 1:
+            print()
             printAndOrLog('\nFinished. {:.2f} {} of data read.'.format(total_size,sizeUnits),log)
         
         if (error_count == 1):
@@ -1241,7 +1244,7 @@ def check_sha512_integrity(verbosity=1, log=True):
     sha512_path = get_path(SOURCE_DIR_PATH,ext=b'sha512')
 
     if verbosity:
-        printAndOrLog('Checking bitrot.db integrity... ',log)
+        printAndOrLog('Checking bitrot.db integrity...\n',log)
     try:
         if os.path.exists(sha512_path):
             with open(sha512_path, 'rb') as f:
@@ -1288,8 +1291,6 @@ def check_sha512_integrity(verbosity=1, log=True):
 
         raise BitrotException(3, 'bitrot.db integrity check failed, cannot continue.',)
 
-    if verbosity:
-        printAndOrLog('OK.',log)
 
 def update_sha512_integrity(verbosity=1, log=True):
     old_sha512 = 0
@@ -1318,7 +1319,7 @@ def update_sha512_integrity(verbosity=1, log=True):
     new_sha512 = digest.hexdigest().encode('ascii')
     if new_sha512 != old_sha512:
         if verbosity:
-            printAndOrLog('Updating bitrot.sha512... ',log)
+            printAndOrLog('\nUpdating bitrot.sha512...',log)
         
         try:
             with open(sha512_path, 'wb') as f:
