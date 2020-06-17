@@ -476,7 +476,7 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
                         print(f'Files:{progressCounter} Elapsed:{recordTimeElapsed(start)} {progressFormat(p)}\r', end="")
                         # bar.update(progressCounter)
         if verbosity:
-            print()
+            sys.stdout.flush()
         for d in dirs:
             if (isDirtyString(d)):
                 try:
@@ -544,8 +544,11 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                 continue
 
             try:
-                if follow_links or p_uni in expected:
-                    st = os.stat(p)
+                if os.path.islink(p):
+                    if follow_links:
+                        st = os.stat(p)
+                    else:
+                        st = os.lstat(p)
                 else:
                     st = os.lstat(p)
             except OSError as ex:
@@ -562,7 +565,7 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                 include_this = [fnmatch(file.encode(FSENCODING), wildcard)
                                 for file in p.split(os.path.sep)
                                 for wildcard in included]
-                if not stat.S_ISREG(st.st_mode) or any(exclude_this) or any([fnmatch(p_uni, exc) for exc in excluded]) or (included and not any([fnmatch(p_uni, inc) for inc in included]) and not any(include_this)):
+                if (not stat.S_ISREG(st.st_mode) and not os.path.islink(p)) or any(exclude_this) or any([fnmatch(p_uni, exc) for exc in excluded]) or (included and not any([fnmatch(p_uni, inc) for inc in included]) and not any(include_this)):
                 #if not stat.S_ISREG(st.st_mode) or any([fnmatch(p, exc) for exc in excluded]):
                     excludedList.append(p)
                 else:
@@ -633,7 +636,7 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
     # if verbosity:
     #     bar.finish()
     if verbosity:
-        print()
+        sys.stdout.flush()
     return paths, total_size, excludedList
 
 
@@ -1042,7 +1045,7 @@ class Bitrot(object):
         sizeUnits , total_size = calculateUnits(total_size=total_size)
         totalFixed = fixedRenameCounter + fixedPropertiesCounter
         if self.verbosity >= 1:
-            print()
+            sys.stdout.flush()
             printAndOrLog('Finished. {:.2f} {} of data read.'.format(total_size,sizeUnits),log)
         
         if (error_count == 1):
@@ -1313,7 +1316,6 @@ def update_sha512_integrity(verbosity=1, log=True):
     if new_sha512 != old_sha512:
         if verbosity:
             printAndOrLog('Updating bitrot.sha512... ',log)
-            sys.stdout.flush()
         
         try:
             with open(sha512_path, 'wb') as f:
@@ -1324,9 +1326,6 @@ def update_sha512_integrity(verbosity=1, log=True):
         except Exception as e:
             printAndOrLog("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e),log)
             raise Exception("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e))    
-
-        if verbosity:
-            printAndOrLog('done.',log)
 
 def recordTimeElapsed(startTime=0):
     elapsedTime = (time.time() - startTime)  
