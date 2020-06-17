@@ -114,6 +114,13 @@ def writeToSFV(stringToWrite="", sfv="",log=True):
     except Exception as err:
         printAndOrLog("Could not open checksum file: \'{}\'. Received error: {}".format(sfv_path, err),log)
 
+def print_statusline(msg: str):
+    last_msg_length = len(print_statusline.last_msg) if hasattr(print_statusline, 'last_msg') else 0
+    print(' ' * last_msg_length, end='\r')
+    print(msg, end='\r')
+    sys.stdout.flush()  # Some say they needed this, I didn't.
+    print_statusline.last_msg = msg
+
 def hash(path, chunk_size,algorithm="",log=True,sfv=""):
     #0 byte files:
     # md5 d41d8cd98f00b204e9800998ecf8427e
@@ -358,7 +365,8 @@ def compute_one(path, numPaths, startTime, chunk_size,algorithm="",log=True,sfv=
     """Return a tuple with (unicode path, size, mtime, sha1). Takes a binary path."""
     global hashProgressCounter
     hashProgressCounter = hashProgressCounter + 1        
-    print(f'{hashProgressCounter}/{numPaths} {hashProgressCounter/numPaths*100:0.1f}% Elapsed:{recordTimeElapsed(startTime)} {progressFormat(path)}\r', end="", flush=True)
+    statusString = str(hashProgressCounter) + "/" + str(numPaths) + " " + str(hashProgressCounter/numPaths*100) + "% Elapsed:" + recordTimeElapsed(startTime) + " " + progressFormat(path)
+    print_statusline(statusString)
 
     try:
         st = os.stat(path)
@@ -475,8 +483,6 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
                         progressCounter+=1
                         print(f'Files:{progressCounter} Elapsed:{recordTimeElapsed(start)} {progressFormat(p)}\r', end="", flush=True)
                         # bar.update(progressCounter)
-        if verbosity:
-            print()
         for d in dirs:
             if (isDirtyString(d)):
                 try:
@@ -630,13 +636,11 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                     total_size += st.st_size
                 if verbosity:
                     progressCounter+=1
-                    print(f'Files:{progressCounter} Elapsed:{recordTimeElapsed(start)} {progressFormat(p)}\r', end="", flush=True)
-        
+                    statusString = "Files:" + str(progressCounter) + " Elapsed:" + recordTimeElapsed(start) + " " + progressFormat(p)
+                    print_statusline(statusString)
     #               bar.update(progressCounter)
     # if verbosity:
     #     bar.finish()
-    if verbosity:
-        print()
     return paths, total_size, excludedList
 
 
@@ -1046,8 +1050,7 @@ class Bitrot(object):
         sizeUnits , total_size = calculateUnits(total_size=total_size)
         totalFixed = fixedRenameCounter + fixedPropertiesCounter
         if self.verbosity >= 1:
-            print()
-            printAndOrLog('Finished. {:.2f} {} of data read.'.format(total_size,sizeUnits),log)
+            printAndOrLog('\nFinished. {:.2f} {} of data read.'.format(total_size,sizeUnits),log)
         
         if (error_count == 1):
             printAndOrLog('1 error found.',log)
