@@ -54,17 +54,9 @@ file in the `tests` directory to run it.
 
 Change Log
 ----------
-
 1.0.0
 ~~~~~
-
-* significantly sped up execution on solid state drives by using
-  a process pool executor to calculate SHA1 hashes and perform `stat()`
-  calls; use `-w1` if your runs on slow magnetic drives were
-  negatively affected by this change
-
-* sped up execution by pre-loading all SQLite-stored hashes to memory
-  and doing comparisons using Python sets
+* Reverted to single CPU (removed multi threading)
 
 0.9.5
 ~~~~~
