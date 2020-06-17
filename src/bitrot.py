@@ -358,7 +358,7 @@ def compute_one(path, numPaths, startTime, chunk_size,algorithm="",log=True,sfv=
     """Return a tuple with (unicode path, size, mtime, sha1). Takes a binary path."""
     global hashProgressCounter
     hashProgressCounter = hashProgressCounter + 1        
-    print(f'{hashProgressCounter}/{numPaths} {hashProgressCounter/numPaths*100:0.1f}% Elapsed:{recordTimeElapsed(startTime)} {progressFormat(path)}\r', end="")
+    print(f'{hashProgressCounter}/{numPaths} {hashProgressCounter/numPaths*100:0.1f}% Elapsed:{recordTimeElapsed(startTime)} {progressFormat(path)}\r', end="", flush=True)
 
     try:
         st = os.stat(path)
@@ -473,10 +473,10 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
                     fixedRenameCounter += 1
                     if verbosity:
                         progressCounter+=1
-                        print(f'Files:{progressCounter} Elapsed:{recordTimeElapsed(start)} {progressFormat(p)}\r', end="")
+                        print(f'Files:{progressCounter} Elapsed:{recordTimeElapsed(start)} {progressFormat(p)}\r', end="", flush=True)
                         # bar.update(progressCounter)
         if verbosity:
-            sys.stdout.flush()
+            print()
         for d in dirs:
             if (isDirtyString(d)):
                 try:
@@ -630,13 +630,13 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                     total_size += st.st_size
                 if verbosity:
                     progressCounter+=1
-                    print(f'Files:{progressCounter} Elapsed:{recordTimeElapsed(start)} {progressFormat(p)}\r', end="")
+                    print(f'Files:{progressCounter} Elapsed:{recordTimeElapsed(start)} {progressFormat(p)}\r', end="", flush=True)
         
     #               bar.update(progressCounter)
     # if verbosity:
     #     bar.finish()
     if verbosity:
-        sys.stdout.flush()
+        print()
     return paths, total_size, excludedList
 
 
@@ -949,6 +949,7 @@ class Bitrot(object):
                         self.algorithm,p_uni, stored_hash, new_hash, stored_ts),self.log)   
                 FIMErrorCounter += 1 
 
+
         # if self.verbosity:    
         #     format_custom_text.update_mapping(f="")
         #     bar.finish()
@@ -1045,7 +1046,7 @@ class Bitrot(object):
         sizeUnits , total_size = calculateUnits(total_size=total_size)
         totalFixed = fixedRenameCounter + fixedPropertiesCounter
         if self.verbosity >= 1:
-            sys.stdout.flush()
+            print()
             printAndOrLog('Finished. {:.2f} {} of data read.'.format(total_size,sizeUnits),log)
         
         if (error_count == 1):
@@ -1238,7 +1239,6 @@ def check_sha512_integrity(verbosity=1, log=True):
 
     if verbosity:
         printAndOrLog('Checking bitrot.db integrity... ',log)
-        sys.stdout.flush()
     try:
         if os.path.exists(sha512_path):
             with open(sha512_path, 'rb') as f:
