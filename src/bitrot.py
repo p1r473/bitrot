@@ -25,8 +25,6 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
-from multiprocessing import freeze_support
-import concurrent.futures 
 import argparse
 import atexit
 import datetime
@@ -40,7 +38,7 @@ import stat
 import sys
 import tempfile
 import time
-# import progressbar
+import progressbar
 import smtplib
 from fnmatch import fnmatch
 import email.utils
@@ -327,22 +325,6 @@ def calculateUnits(total_size = 0):
         return sizeUnits, total_size
 
 
-def progressFormat(current_path):
-    current_path = normalize_path(current_path)
-    terminal_size = shutil.get_terminal_size()
-    cols = terminal_size.columns
-    max_path_size =  int(shutil.get_terminal_size().columns/2)
-    if len(current_path) > max_path_size:
-        # show first half and last half, separated by ellipsis
-        # e.g. averylongpathnameaveryl...ameaverylongpathname
-        half_mps = (max_path_size - 3) // 2
-        current_path = current_path[:half_mps] + '...' + current_path[-half_mps:]
-    else:
-        # pad out with spaces, otherwise previous filenames won't be erased
-        current_path += ' ' * (max_path_size - len(current_path))
-    # current_path = current_path + '|'
-    return current_path
-
 
 def cleanString(stringToClean=""):
     #stringToClean=re.sub(r'[\\/*?:"<>|]',"",stringToClean)
@@ -361,46 +343,6 @@ def isDirtyString(stringToCheck=""):
 def ts():
     return datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S%z')
 
-def compute_one(path, numPaths, startTime, chunk_size,algorithm="",log=True,sfv="",verbosity=True):
-    """Return a tuple with (unicode path, size, mtime, sha1). Takes a binary path."""
-    global hashProgressCounter
-    hashProgressCounter = hashProgressCounter + 1        
-    statusString = str(hashProgressCounter) + "/" + str(numPaths) + " " + str(round(hashProgressCounter/numPaths*100,1)) + "% Elapsed:" + recordTimeElapsed(startTime) + " " + progressFormat(path)
-    print_statusline(statusString,15)
-
-    try:
-        st = os.stat(path)
-    except OSError as ex:
-        if ex.errno in IGNORED_FILE_SYSTEM_ERRORS:
-            # The file disappeared between listing existing paths and
-            # this run or is (temporarily?) locked with different
-            # permissions. We'll just skip it for now.
-            print(
-                '\rwarning: `{}` is currently unavailable for '
-                'reading: {}'.format(
-                    path, ex,
-                ),
-                file=sys.stderr,
-            )
-            raise BitrotException
-
-        raise   # Not expected? https://github.com/ambv/bitrot/issues/
-
-    new_mtime = int(st.st_mtime)
-
-    try:
-        new_hash = hash(path, chunk_size,algorithm,log,sfv)
-
-    except (IOError, OSError) as e:
-        print(
-            '\rwarning: cannot compute hash of {} [{}]'.format(
-                path, errno.errorcode[e.args[0]],
-            ),
-            file=sys.stderr,
-        )
-        raise BitrotException 
-
-    return path, st.st_size, int(st.st_mtime), new_hash
 
 def get_sqlite3_cursor(path, copy=False):
     if copy:
@@ -450,8 +392,8 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
 #   Also note that topdown=False in os.walk() doesn't matter. Since you are not renaming directories, the directory structure will be invariant during os.walk().
     progressCounter=0
     if verbosity:
-    #         bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
         print("Scanning file and directory names to fix... Please wait...")
+        bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
         start = time.time()
     for root, dirs, files in os.walk(directory, topdown=False):
         for f in files:
@@ -481,9 +423,9 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
                     fixedRenameCounter += 1
                     if verbosity:
                         progressCounter+=1
-                        statusString = "Files:" + str(progressCounter) + " Elapsed:" + recordTimeElapsed(start) + " " + progressFormat(p)
-                        print_statusline(statusString,15)
-                        # bar.update(progressCounter)
+                        # statusString = "Files:" + str(progressCounter) + " Elapsed:" + recordTimeElapsed(start) + " " + progressFormat(p)
+                        # print_statusline(statusString,15)
+                        bar.update(progressCounter)
         for d in dirs:
             if (isDirtyString(d)):
                 try:
@@ -506,12 +448,12 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
                     fixedRenameList[fixedRenameCounter].append(os.path.join(root, pBackup))
                     fixedRenameList[fixedRenameCounter].append(os.path.join(root, pi))
                     fixedRenameCounter += 1
-    #                 if verbosity:
-    #                     progressCounter+=1
-    #                     bar.update(progressCounter)
+                    if verbosity:
+                        progressCounter+=1
+                        bar.update(progressCounter)
     if verbosity:
         print()
-    #     bar.finish()
+        bar.finish()
     return fixedRenameList, fixedRenameCounter
 
 def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included=(), 
@@ -534,7 +476,7 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
     if verbosity:
         print("Mapping all files... Please wait...")
         start = time.time()
-        # bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
+        bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
     for path, _, files in os.walk("."):
         for f in files:
             p = os.path.join(path, f)
@@ -584,7 +526,7 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                     #             break
                     #     if oldMatch != "":
                     #         oldFile = os.stat(oldMatch)
-                    #         #new_mtime = int(st.st_mtime) JCPC
+                    #         new_mtime = int(st.st_mtime)
                     #         old_mtime = int(oldFile.st_mtime)
                     #         new_atime = int(st.st_atime)
                     #         old_atime = int(oldFile.st_atime)
@@ -637,38 +579,38 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                     total_size += st.st_size
                 if verbosity:
                     progressCounter+=1
-                    statusString = "Files:" + str(progressCounter) + " Elapsed:" + recordTimeElapsed(start) + " " + progressFormat(p)
-                    print_statusline(statusString,15)
-    #               bar.update(progressCounter)
+                    # statusString = "Files:" + str(progressCounter) + " Elapsed:" + recordTimeElapsed(start) + " " + progressFormat(p)
+                    # print_statusline(statusString,15)
+                    bar.update(progressCounter)
     if verbosity:
-    #     bar.finish()
+        bar.finish()
         print()
     return paths, total_size, excludedList
 
 
-# class CustomETA(progressbar.widgets.ETA):
+class CustomETA(progressbar.widgets.ETA):
 
-#     def __call__(self, progress, data):
-#         # Run 'ETA.__call__' to update 'data'. This adds the 'eta_seconds'
-#         formatted = progressbar.widgets.ETA.__call__(self, progress, data)
+    def __call__(self, progress, data):
+        # Run 'ETA.__call__' to update 'data'. This adds the 'eta_seconds'
+        formatted = progressbar.widgets.ETA.__call__(self, progress, data)
 
-#         # ETA might not be available, if the maximum length is not available
-#         # for example
-#         if data.get('eta'):
-#             # By using divmod we can split the timedelta to hours and the
-#             # remaining timedelta
-#             hours, delta = divmod(
-#                 timedelta(seconds=int(data['eta_seconds'])),
-#                 timedelta(hours=1),
-#             )
-#             data['eta'] = ' {hours}{delta_truncated}'.format(
-#                 hours=hours,
-#                 # Strip the 0 hours from the timedelta
-#                 delta_truncated=str(delta).lstrip('0'),
-#             )
-#             return progressbar.widgets.Timer.__call__(self, progress, data, format=self.format)
-#         else:
-#             return formatted
+        # ETA might not be available, if the maximum length is not available
+        # for example
+        if data.get('eta'):
+            # By using divmod we can split the timedelta to hours and the
+            # remaining timedelta
+            hours, delta = divmod(
+                timedelta(seconds=int(data['eta_seconds'])),
+                timedelta(hours=1),
+            )
+            data['eta'] = ' {hours}{delta_truncated}'.format(
+                hours=hours,
+                # Strip the 0 hours from the timedelta
+                delta_truncated=str(delta).lstrip('0'),
+            )
+            return progressbar.widgets.Timer.__call__(self, progress, data, format=self.format)
+        else:
+            return formatted
 
 
 class BitrotException(Exception):
@@ -677,7 +619,7 @@ class BitrotException(Exception):
 class Bitrot(object):
     def __init__(
         self, verbosity=1, email = False, log = False, test=0, recent = 0, follow_links=False, commit_interval=300,
-        chunk_size=DEFAULT_CHUNK_SIZE, workers=os.cpu_count(), include_list=[], exclude_list=[], algorithm="", sfv="MD5", fix=0, normalize=False
+        chunk_size=DEFAULT_CHUNK_SIZE, include_list=[], exclude_list=[], algorithm="", sfv="MD5", fix=0, normalize=False
     ):
         self.verbosity = verbosity
         self.test = test
@@ -689,7 +631,6 @@ class Bitrot(object):
         self.exclude_list = exclude_list
         self._last_reported_size = ''
         self._last_commit_ts = 0
-        self.pool = concurrent.futures.ThreadPoolExecutor(max_workers=workers)
         self.email = email
         self.log = log
         self.startTime = time.time()
@@ -743,6 +684,7 @@ class Bitrot(object):
         fixedPropertiesList = []
         fixedPropertiesCounter = 0
         current_size = 0
+        progressCounter = 0
         
 
         missing_paths = self.select_all_paths(cur)
@@ -790,33 +732,37 @@ class Bitrot(object):
 
         if self.verbosity:
             print("Hashing all files... Please wait...")
-        # format_custom_text = progressbar.FormatCustomText(
-        #     '%(f)s',
-        #     dict(
-        #         f='',
-        #     )
-        # )
-        # global bar
-        # bar = progressbar.ProgressBar(max_value=len(paths),widgets=[format_custom_text,
-        #     CustomETA(format_not_started='%(value)2d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format_finished='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s|ETA:%(eta)8s', format_zero='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format_NA='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s'),
-        #     progressbar.Bar(marker='#', left='|', right='|', fill=' ', fill_left=True),               
-        #     ])
+            format_custom_text = progressbar.FormatCustomText(
+                '%(f)s',
+                dict(
+                    f='',
+                )
+            )
+            bar = progressbar.ProgressBar(max_value=len(paths),widgets=[format_custom_text,
+                CustomETA(format_not_started='%(value)2d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format_finished='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s|ETA:%(eta)8s', format_zero='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format_NA='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s'),
+                progressbar.Bar(marker='#', left='|', right='|', fill=' ', fill_left=True),               
+                ])
         start = time.time()
 
-        futures = [self.pool.submit(compute_one, p, len(paths), start, self.chunk_size,self.algorithm,log=self.log,sfv=self.sfv, verbosity=self.verbosity) for p in sorted(paths)]
-
-        
-        for future in concurrent.futures.as_completed(futures):
+        for p in sorted(paths):
+            p_uni = p
             try:
-                p_uni, new_size, new_mtime, new_hash = future.result()
-                p = p_uni.encode(FSENCODING)
                 st = os.stat(p)
+            except OSError as ex:
+                if ex.errno in IGNORED_FILE_SYSTEM_ERRORS:
+                    # The file disappeared between listing existing paths and
+                    # this run or is (temporarily?) locked with different
+                    # permissions. We'll just skip it for now.
+                    warnings.append(p)
+                    #writeToLog('\nWarning: \'{}\' is currently unavailable for reading: {}'.format(p_uni, ex))
+                    printAndOrLog('Warning: \'{}\' is currently unavailable for reading: {}'.format(p, ex),self.log)
+                    continue
             except BitrotException:
                 continue
 
-            # if self.verbosity:  
-            #     progressCounter+=1  
-            #     bar.update(progressCounter) 
+            if self.verbosity:  
+                progressCounter+=1  
+                bar.update(progressCounter) 
             
             new_mtime = int(st.st_mtime)
             new_atime = int(st.st_atime)
@@ -894,10 +840,19 @@ class Bitrot(object):
                             fixedPropertiesList[fixedPropertiesCounter].append(p_uni)
                             fixedPropertiesCounter += 1
 
-            current_size += new_size
+            current_size += st.st_size
 
-            # if self.verbosity:  
-            #     format_custom_text.update_mapping(f=self.progressFormat(p_uni))
+            if self.verbosity:  
+                format_custom_text.update_mapping(f=self.progressFormat(p_uni)) 
+
+            try:
+                new_hash = hash(p, self.chunk_size,self.algorithm,log=self.log,sfv=self.sfv)
+            except (IOError, OSError) as e:
+                warnings.append(p)
+                printAndOrLog('Warning: Cannot compute hash of {} [{}]'.format(
+                            #p, errno.errorcode[e.args[0]]))
+                            p_uni, errno.errorcode[e.args[0]]),self.log)
+                continue
 
             if p_uni not in missing_paths:
                 # We are not expecting this path, it wasn't in the database yet.
@@ -955,9 +910,9 @@ class Bitrot(object):
                 FIMErrorCounter += 1 
 
 
-        # if self.verbosity:    
-        #     format_custom_text.update_mapping(f="")
-        #     bar.finish()
+        if self.verbosity:    
+            format_custom_text.update_mapping(f="")
+            bar.finish()
 
         if (self.email):
             if (FIMErrorCounter >= 1):
@@ -1005,17 +960,17 @@ class Bitrot(object):
             printAndOrLog("Time elapsed: " + recordTimeElapsed(startTime = self.startTime))
             
 
-        # if warnings:
-        #     if len(warnings) == 1:
-        #         printAndOrLog('Warning: There was 1 warning found.',self.log)
-        #     else:
-        #         printAndOrLog('Warning: There were {} warnings found.'.format(len(warnings)),self.log)
+        if warnings:
+            if len(warnings) == 1:
+                printAndOrLog('Warning: There was 1 warning found.',self.log)
+            else:
+                printAndOrLog('Warning: There were {} warnings found.'.format(len(warnings)),self.log)
 
-        # if errors:
-        #     if len(errors) == 1:
-        #         raise BitrotException(1, 'There was 1 error found.')
-        #     else:
-        #         raise BitrotException(1, 'There were {} errors found.'.format(len(errors)), errors)
+        if errors:
+            if len(errors) == 1:
+                raise BitrotException(1, 'There was 1 error found.')
+            else:
+                raise BitrotException(1, 'There were {} errors found.'.format(len(errors)), errors)
 
     def select_all_paths(self, cur):
         """Return a set of all distinct paths in the bitrot database.
@@ -1041,6 +996,22 @@ class Bitrot(object):
             result.setdefault(rhash, set()).add(rpath)
             row = cur.fetchone()
         return result
+
+    def progressFormat(self,current_path):
+        current_path = normalize_path(current_path)
+        terminal_size = shutil.get_terminal_size()
+        cols = terminal_size.columns
+        max_path_size =  int(shutil.get_terminal_size().columns/2)
+        if len(current_path) > max_path_size:
+            # show first half and last half, separated by ellipsis
+            # e.g. averylongpathnameaveryl...ameaverylongpathname
+            half_mps = (max_path_size - 3) // 2
+            current_path = current_path[:half_mps] + '...' + current_path[-half_mps:]
+        else:
+            # pad out with spaces, otherwise previous filenames won't be erased
+            current_path += ' ' * (max_path_size - len(current_path))
+        # current_path = current_path + '|'
+        return current_path
 
     def report_done(
         self, total_size, all_count, error_count, warning_count, paths, existing_paths, new_paths, updated_paths,
@@ -1389,9 +1360,6 @@ def run_from_command_line():
         help='min time in seconds between commits '
              '(0 commits on every operation).')
     parser.add_argument(
-        '-w', '--workers', type=int, default=os.cpu_count(),
-        help='run this many workers (use -w1 for slow magnetic disks)')
-    parser.add_argument(
         '--chunk-size', type=int, default=DEFAULT_CHUNK_SIZE,
         help='read files this many bytes at a time.')
     parser.add_argument(
@@ -1701,7 +1669,6 @@ def run_from_command_line():
         follow_links = args.follow_links,
         commit_interval = args.commit_interval,
         chunk_size = args.chunk_size,
-        workers=args.workers,
         include_list = include_list,
         exclude_list = exclude_list,
         sfv = sfv,
