@@ -358,7 +358,7 @@ def compute_one(path, numPaths, startTime, chunk_size,algorithm="",log=True,sfv=
     """Return a tuple with (unicode path, size, mtime, sha1). Takes a binary path."""
     global hashProgressCounter
     hashProgressCounter = hashProgressCounter + 1        
-    print(f"{hashProgressCounter}/{numPaths} {hashProgressCounter/numPaths*100:0.1f}% Elapsed:{recordTimeElapsed(startTime)} {progressFormat(path)}", end="\r")
+    print(f'{hashProgressCounter}/{numPaths} {hashProgressCounter/numPaths*100:0.1f}% Elapsed:{recordTimeElapsed(startTime)} {progressFormat(path)}\r', end="")
 
     try:
         st = os.stat(path)
@@ -473,10 +473,10 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
                     fixedRenameCounter += 1
                     if verbosity:
                         progressCounter+=1
-                        print(f"Files:{progressCounter} Elapsed:{recordTimeElapsed(start)} {progressFormat(p)}", end="\r")
+                        print(f'Files:{progressCounter} Elapsed:{recordTimeElapsed(start)} {progressFormat(p)}\r', end="")
                         # bar.update(progressCounter)
         if verbosity:
-            print("\n")
+            print()
         for d in dirs:
             if (isDirtyString(d)):
                 try:
@@ -627,12 +627,13 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                     total_size += st.st_size
                 if verbosity:
                     progressCounter+=1
-                    print(f"Files:{progressCounter} Elapsed:{recordTimeElapsed(start)} {progressFormat(p)}", end="\r")
+                    print(f'Files:{progressCounter} Elapsed:{recordTimeElapsed(start)} {progressFormat(p)}\r', end="")
+        
     #               bar.update(progressCounter)
     # if verbosity:
     #     bar.finish()
     if verbosity:
-        print("\n")
+        print()
     return paths, total_size, excludedList
 
 
@@ -771,6 +772,14 @@ class Bitrot(object):
         FIMErrorCounter = 0;
         # paths_uni = set(normalize_path(p) for p in paths)
 
+        #These are missing entries that have recently been excluded
+        for path in missing_paths:
+            if (path in excludedList):
+                temporary_paths.append(path)
+        for path in temporary_paths:
+            missing_paths.discard(path)
+            cur.execute('DELETE FROM bitrot WHERE path=?', (path,))
+
         if self.verbosity:
             print("Hashing all files... Please wait...")
         # format_custom_text = progressbar.FormatCustomText(
@@ -786,14 +795,6 @@ class Bitrot(object):
         #     ])
         start = time.time()
         futures = [self.pool.submit(compute_one, p, len(paths), start, self.chunk_size,self.algorithm,log=self.log,sfv=self.sfv, verbosity=self.verbosity) for p in paths]
-
-        #These are missing entries that have recently been excluded
-        for path in missing_paths:
-            if (path in excludedList):
-                temporary_paths.append(path)
-        for path in temporary_paths:
-            missing_paths.discard(path)
-            cur.execute('DELETE FROM bitrot WHERE path=?', (path,))
 
         for future in as_completed(futures):
             try:
@@ -1038,7 +1039,7 @@ class Bitrot(object):
         sizeUnits , total_size = calculateUnits(total_size=total_size)
         totalFixed = fixedRenameCounter + fixedPropertiesCounter
         if self.verbosity >= 1:
-            print("\n")
+            print()
             printAndOrLog('Finished. {:.2f} {} of data read.'.format(total_size,sizeUnits),log)
         
         if (error_count == 1):
