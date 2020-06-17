@@ -114,9 +114,9 @@ def writeToSFV(stringToWrite="", sfv="",log=True):
     except Exception as err:
         printAndOrLog("Could not open checksum file: \'{}\'. Received error: {}".format(sfv_path, err),log)
 
-def print_statusline(msg: str):
+def print_statusline(msg: str, offset = 0):
     last_msg_length = len(print_statusline.last_msg) if hasattr(print_statusline, 'last_msg') else 0
-    print(' ' * last_msg_length, end='\r')
+    print(' ' * (last_msg_length  + offset), end='\r')
     print(msg, end='\r')
     sys.stdout.flush()  # Some say they needed this, I didn't.
     print_statusline.last_msg = msg
@@ -365,8 +365,8 @@ def compute_one(path, numPaths, startTime, chunk_size,algorithm="",log=True,sfv=
     """Return a tuple with (unicode path, size, mtime, sha1). Takes a binary path."""
     global hashProgressCounter
     hashProgressCounter = hashProgressCounter + 1        
-    statusString = str(hashProgressCounter) + "/" + str(numPaths) + " " + str(hashProgressCounter/numPaths*100) + "% Elapsed:" + recordTimeElapsed(startTime) + " " + progressFormat(path)
-    print_statusline(statusString)
+    statusString = str(hashProgressCounter) + "/" + str(numPaths) + " " + str(round(hashProgressCounter/numPaths*100,1)) + "% Elapsed:" + recordTimeElapsed(startTime) + " " + progressFormat(path)
+    print_statusline(statusString,15)
 
     try:
         st = os.stat(path)
@@ -482,7 +482,7 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
                     if verbosity:
                         progressCounter+=1
                         statusString = "Files:" + str(progressCounter) + " Elapsed:" + recordTimeElapsed(start) + " " + progressFormat(p)
-                        print_statusline(statusString)
+                        print_statusline(statusString,15)
                         # bar.update(progressCounter)
         for d in dirs:
             if (isDirtyString(d)):
@@ -638,7 +638,7 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                 if verbosity:
                     progressCounter+=1
                     statusString = "Files:" + str(progressCounter) + " Elapsed:" + recordTimeElapsed(start) + " " + progressFormat(p)
-                    print_statusline(statusString)
+                    print_statusline(statusString,15)
     #               bar.update(progressCounter)
     if verbosity:
     #     bar.finish()
@@ -707,7 +707,6 @@ class Bitrot(object):
         self._last_commit_ts = time.time()
 
     def run(self):
-
         check_sha512_integrity(verbosity=self.verbosity, log=self.log)
 
         bitrot_sha512 = get_path(SOURCE_DIR_PATH,ext=b'sha512')
