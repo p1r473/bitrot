@@ -795,7 +795,7 @@ class Bitrot(object):
         #     ])
         start = time.time()
 
-        futures = {self.pool.submit(compute_one, p, len(paths), start, self.chunk_size,self.algorithm,log=self.log,sfv=self.sfv, verbosity=self.verbosity) for p in paths}
+        futures = [self.pool.submit(compute_one, p, len(paths), start, self.chunk_size,self.algorithm,log=self.log,sfv=self.sfv, verbosity=self.verbosity) for p in sorted(paths)]
 
         
         for future in concurrent.futures.as_completed(futures):
