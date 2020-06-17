@@ -26,7 +26,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 from multiprocessing import freeze_support
-from concurrent.futures import ProcessPoolExecutor, wait, as_completed
+import concurrent.futures 
 import argparse
 import atexit
 import datetime
@@ -680,7 +680,7 @@ class Bitrot(object):
         self.exclude_list = exclude_list
         self._last_reported_size = ''
         self._last_commit_ts = 0
-        self.pool = ProcessPoolExecutor(max_workers=workers)
+        self.pool = concurrent.futures.ThreadPoolExecutor(max_workers=workers)
         self.email = email
         self.log = log
         self.startTime = time.time()
@@ -794,9 +794,11 @@ class Bitrot(object):
         #     progressbar.Bar(marker='#', left='|', right='|', fill=' ', fill_left=True),               
         #     ])
         start = time.time()
-        futures = [self.pool.submit(compute_one, p, len(paths), start, self.chunk_size,self.algorithm,log=self.log,sfv=self.sfv, verbosity=self.verbosity) for p in paths]
 
-        for future in as_completed(futures):
+        futures = {self.pool.submit(compute_one, p, len(paths), start, self.chunk_size,self.algorithm,log=self.log,sfv=self.sfv, verbosity=self.verbosity) for p in paths}
+
+        
+        for future in concurrent.futures.as_completed(futures):
             try:
                 p_uni, new_size, new_mtime, new_hash = future.result()
                 p = p_uni.encode(FSENCODING)
@@ -943,6 +945,7 @@ class Bitrot(object):
                         #p, stored_hash, new_hash, stored_ts
                         self.algorithm,p_uni, stored_hash, new_hash, stored_ts),self.log)   
                 FIMErrorCounter += 1 
+
         # if self.verbosity:    
         #     format_custom_text.update_mapping(f="")
         #     bar.finish()
