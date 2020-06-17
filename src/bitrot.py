@@ -339,6 +339,20 @@ def isDirtyString(stringToCheck=""):
     else:
         return True
 
+def progressFormat(current_path): 
+    terminal_size = shutil.get_terminal_size()
+    cols = terminal_size.columns
+    max_path_size =  int(shutil.get_terminal_size().columns/2)
+    if len(current_path) > max_path_size:
+        # show first half and last half, separated by ellipsis
+        # e.g. averylongpathnameaveryl...ameaverylongpathname
+        half_mps = (max_path_size - 3) // 2
+        current_path = current_path[:half_mps] + '...' + current_path[-half_mps:]
+    else:
+        # pad out with spaces, otherwise previous filenames won't be erased
+        current_path += ' ' * (max_path_size - len(current_path))
+    current_path = current_path + '|'
+    return current_path
 
 def ts():
     return datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S%z')
@@ -476,6 +490,12 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
     if verbosity:
         print("Mapping all files... Please wait...")
         start = time.time()
+        format_custom_text = progressbar.FormatCustomText(
+                '%(f)s',
+                dict(
+                    f='',
+                )
+            )
         bar = progressbar.ProgressBar(max_value=progressbar.UnknownLength)
     for pathIterator, _, files in os.walk("."):
         for f in files:
@@ -872,7 +892,7 @@ class Bitrot(object):
             current_size += new_size
             if self.verbosity:
                 progressCounter+=1
-                format_custom_text.update_mapping(f=self.progressFormat(path))
+                format_custom_text.update_mapping(f=progressFormat(path))
                 bar.update(progressCounter)
             
 
@@ -1017,21 +1037,6 @@ class Bitrot(object):
             result.setdefault(rhash, set()).add(rpath)
             row = cur.fetchone()
         return result
-
-    def progressFormat(self,current_path): 
-        terminal_size = shutil.get_terminal_size()
-        cols = terminal_size.columns
-        max_path_size =  int(shutil.get_terminal_size().columns/2)
-        if len(current_path) > max_path_size:
-            # show first half and last half, separated by ellipsis
-            # e.g. averylongpathnameaveryl...ameaverylongpathname
-            half_mps = (max_path_size - 3) // 2
-            current_path = current_path[:half_mps] + '...' + current_path[-half_mps:]
-        else:
-            # pad out with spaces, otherwise previous filenames won't be erased
-            current_path += ' ' * (max_path_size - len(current_path))
-        current_path = current_path + '|'
-        return current_path
 
     def report_done(
         self, total_size, all_count, error_count, warning_count, paths, existing_paths, new_paths, updated_paths,
