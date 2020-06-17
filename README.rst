@@ -56,11 +56,7 @@ Change Log
 ----------
 1.0.0
 ~~~~~
-* Reverted to single CPU (removed multi threading)
-
-0.9.5
-~~~~~
-* Added option to normalize all path names
+* Cleanup and bugfixes
 
 0.9.4
 ~~~~~
