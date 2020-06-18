@@ -64,6 +64,7 @@ FSENCODING = sys.getfilesystemencoding()
 SOURCE_DIR='.'
 SOURCE_DIR_PATH = '.'
 DESTINATION_DIR=SOURCE_DIR
+HASHPROGRESSCOUNTER = 0
 
 if sys.version[0] == '2':
     str = type(u'text')
@@ -655,7 +656,10 @@ class CustomETA(progressbar.widgets.ETA):
 
     def __call__(self, progress, data):
         # Run 'ETA.__call__' to update 'data'. This adds the 'eta_seconds'
-        formatted = progressbar.widgets.ETA.__call__(self, progress, data)
+        data_plus_one = data.copy()
+        if (HASHPROGRESSCOUNTER == 1):
+            data_plus_one['value'] += 1
+        formatted = progressbar.widgets.ETA.__call__(self, progress, data_plus_one)
 
         # ETA might not be available, if the maximum length is not available
         # for example
@@ -746,7 +750,7 @@ class Bitrot(object):
         fixedPropertiesList = []
         fixedPropertiesCounter = 0
         current_size = 0
-        progressCounter = 0
+        global HASHPROGRESSCOUNTER
         
 
         missing_paths = self.select_all_paths(cur)
@@ -896,9 +900,10 @@ class Bitrot(object):
 
             current_size += new_size
             if self.verbosity:
-                progressCounter+=1
+                HASHPROGRESSCOUNTER+=1
                 format_custom_text.update_mapping(f=progressFormat(path))
-                bar.update(progressCounter)
+                bar.update(HASHPROGRESSCOUNTER)
+                time.sleep(1.5)
             
 
             if path not in missing_paths:
