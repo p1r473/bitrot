@@ -50,8 +50,13 @@ import zlib
 import re
 import unicodedata
 
+### USER CONFIG
+DEFAULT_COMMIT_INTERVAL = 300
 DEFAULT_CHUNK_SIZE = 1048576 # used to be 16384 - block size in HFS+; 4X the block size in ext4
 DEFAULT_HASH_FUNCTION = "SHA512"
+SERVER = smtplib.SMTP('smtp.emailprovider.com', 587)
+###
+
 DOT_THRESHOLD = 2
 VERSION = (1, 0, 0)
 IGNORED_FILE_SYSTEM_ERRORS = {errno.ENOENT, errno.EACCES, errno.EINVAL}
@@ -65,18 +70,18 @@ if sys.version[0] == '2':
     # use \'bytes\' for bytestrings
 
 def sendEmail(MESSAGE="", SUBJECT="", log=True, verbosity=1):
-    SERVER = smtplib.SMTP('smtp.emailprovider.com', 587)
+    global SERVER
     
-    # SERVER.ehlo()
-    # SERVER.starttls()
+    SERVER.ehlo()
+    SERVER.starttls()
 
-    #                     'Subject: %s' % SUBJECT,
-    #                     '', MESSAGE])
+                        'Subject: %s' % SUBJECT,
+                        '', MESSAGE])
 
-    # try:
-    # except Exception as err:
-    #     printAndOrLog('Email sending error: {}'.format(err))
-    # SERVER.quit()
+    try:
+    except Exception as err:
+        printAndOrLog('Email sending error: {}'.format(err))
+    SERVER.quit()
 
 def normalize_path(path):
     if FSENCODING == 'utf-8' or FSENCODING == 'UTF-8':
@@ -1381,7 +1386,7 @@ def run_from_command_line():
         '--version', action='version',
         version='%(prog)s {}.{}.{}'.format(*VERSION))
     parser.add_argument(
-        '--commit-interval', type=float, default=300,
+        '--commit-interval', type=float, default=DEFAULT_COMMIT_INTERVAL,
         help='min time in seconds between commits '
              '(0 commits on every operation).')
     parser.add_argument(
@@ -1502,7 +1507,7 @@ def run_from_command_line():
 
     log = args.log
     log_path = get_path(SOURCE_DIR_PATH,ext=b'log')
-    if (verbosity):
+    if (verbosity and log):
         writeToLog('\n=============================\n')
         writeToLog('Log started at ')
         writeToLog(datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
@@ -1519,39 +1524,39 @@ def run_from_command_line():
         test = int(args.test)
         if (verbosity):
             if (test == 0):
-                printAndOrLog("Testing-only disabled.",args.log)
+                printAndOrLog("Testing-only disabled.",log)
             elif (test == 1):
-                printAndOrLog("Just testing against an existing database, won\'t update anything.",args.log)
+                printAndOrLog("Just testing against an existing database, won\'t update anything.",log)
             elif (test == 2):
-                printAndOrLog("Won\'t compare dates, only hashes",args.log)
+                printAndOrLog("Won\'t compare dates, only hashes",log)
             else:
-                printAndOrLog("Invalid test option selected: {}. Using default level 0: testing-only disabled.".format(args.test),args.log)
+                printAndOrLog("Invalid test option selected: {}. Using default level 0: testing-only disabled.".format(args.test),log)
                 test = 0
     except Exception as err:
-        printAndOrLog("Invalid test option selected: {}. Using default level 0: testing-only disabled.".format(args.test),args.log)
+        printAndOrLog("Invalid test option selected: {}. Using default level 0: testing-only disabled.".format(args.test),log)
         test = 0
 
     DESTINATION_DIR = SOURCE_DIR
     try:
         if not args.destination:
             if verbosity:
-                printAndOrLog('Using current directory for destination file list.',args.log)
+                printAndOrLog('Using current directory for destination file list.',log)
         else:
             if (test == 0 and args.destination):
                 if verbosity:
-                    printAndOrLog("Setting destination only works in testing mode. Please see --test.",args.log)
-                    printAndOrLog('Using current directory for destination file list.',args.log)
+                    printAndOrLog("Setting destination only works in testing mode. Please see --test.",log)
+                    printAndOrLog('Using current directory for destination file list.',log)
             else:
                 DESTINATION_DIR = args.destination
                 if verbosity:
-                    printAndOrLog('Destination directory \'{}\'.'.format(args.destination),args.log)
+                    printAndOrLog('Destination directory \'{}\'.'.format(args.destination),log)
     except Exception as err:
-            printAndOrLog("Invalid Destination directory: \'{}\'. Using current directory. Received error: {}".format(args.destination, err),args.log) 
+            printAndOrLog("Invalid Destination directory: \'{}\'. Using current directory. Received error: {}".format(args.destination, err),log) 
 
     include_list = []
     if args.include_list:
         if verbosity:
-            printAndOrLog('Opening file inclusion list at \'{}\'.'.format(args.include_list),args.log)
+            printAndOrLog('Opening file inclusion list at \'{}\'.'.format(args.include_list),log)
         try:
             #include_list = [line.rstrip('\n').encode(FSENCODING) for line in open(args.include_list)]
             with open(args.include_list) as includeFile:
@@ -1561,14 +1566,14 @@ def run_from_command_line():
                 includeFile.close() # should be harmless if include_list == sys.stdin
 
         except Exception as err:
-            printAndOrLog("Invalid inclusion list specified: \'{}\'. Not using an inclusion list. Received error: {}".format(args.include_list, err),args.log)
+            printAndOrLog("Invalid inclusion list specified: \'{}\'. Not using an inclusion list. Received error: {}".format(args.include_list, err),log)
             include_list = []
     else:
         include_list = []
     exclude_list = []
     if args.exclude_list:
         if verbosity:
-            printAndOrLog('Opening file exclusion list at \'{}\'.'.format(args.exclude_list),args.log)
+            printAndOrLog('Opening file exclusion list at \'{}\'.'.format(args.exclude_list),log)
         try:
             # exclude_list = [line.rstrip('\n').encode(FSENCODING) for line in open(args.exclude_list)]
             with open(args.exclude_list) as excludeFile:
@@ -1577,7 +1582,7 @@ def run_from_command_line():
                     exclude_list.append(line)
                 excludeFile.close() # should be harmless if include_list == sys.stdin
         except Exception as err:
-            printAndOrLog("Invalid exclusion list specified: \'{}\'. Not using an exclusion list. Received error: {}".format(args.exclude_list, err),args.log)
+            printAndOrLog("Invalid exclusion list specified: \'{}\'. Not using an exclusion list. Received error: {}".format(args.exclude_list, err),log)
             exclude_list = []
     else:
         exclude_list = []
@@ -1587,12 +1592,12 @@ def run_from_command_line():
         workers = int(args.workers)
         if (verbosity):
             if (workers <= 0 or workers > 61):
-                printAndOrLog('{} workers selected. Worker count must be between 1-61. Using the default of 1.'.format(args.workers),args.log)
+                printAndOrLog('{} workers selected. Worker count must be between 1-61. Using the default of 1.'.format(args.workers),log)
                 workers = 1
             else:
-                printAndOrLog('Using {} workers.'.format(args.workers),args.log)
+                printAndOrLog('Using {} workers.'.format(args.workers),log)
     except Exception as err:
-        printAndOrLog('{} workers selected. Worker count must be between 1-61. Using the default of 1.'.format(args.workers),args.log)
+        printAndOrLog('{} workers selected. Worker count must be between 1-61. Using the default of 1.'.format(args.workers),log)
         workers = 1
 
     chunk_size = args.chunk_size
@@ -1600,12 +1605,12 @@ def run_from_command_line():
         chunk_size = int(args.chunk_size)
         if (verbosity):
             if (chunk_size <= 0):
-                printAndOrLog('{} chunk size selected. Chunk size must be > 0. Using the default of 1.'.format(args.chunk_size),args.log)
+                printAndOrLog('{} chunk size selected. Chunk size must be > 0. Using the default of 1.'.format(args.chunk_size),log)
                 workers = 1
             else:
-                printAndOrLog('Using chunk size of {}.'.format(args.chunk_size),args.log)
+                printAndOrLog('Using chunk size of {}.'.format(args.chunk_size),log)
     except Exception as err:
-        printAndOrLog('Chunk size {} selected. Chunk size must be > 0. Using the default of 1.'.format(args.chunk_size),args.log)
+        printAndOrLog('Chunk size {} selected. Chunk size must be > 0. Using the default of 1.'.format(args.chunk_size),log)
         workers = 1
 
     commit_interval = args.commit_interval
@@ -1613,13 +1618,13 @@ def run_from_command_line():
         commit_interval = int(args.commit_interval)
         if (verbosity):
             if (commit_interval <= 0):
-                printAndOrLog('{} commit interval selected. Commit interval must be > 0. Using the default of 300.'.format(args.commit_interval),args.log)
-                commit_interval = 300
+                printAndOrLog('{} commit interval selected. Commit interval must be > 0. Using the default of {}.'.format(args.commit_interval, DEFAULT_COMMIT_INTERVAL),log)
+                commit_interval = DEFAULT_COMMIT_INTERVAL
             else:
-                printAndOrLog('Using a commit interval of {}.'.format(args.commit_interval),args.log)
+                printAndOrLog('Using a commit interval of {}.'.format(args.commit_interval),log)
     except Exception as err:
-        printAndOrLog('{} commit interval selected. Commit interval must be > 0. Using the default of 300.'.format(args.commit_interval),args.log)
-        commit_interval = 300
+        printAndOrLog('{} commit interval selected. Commit interval must be > 0. Using the default of {}.'.format(args.commit_interval, DEFAULT_COMMIT_INTERVAL),log)
+        commit_interval = DEFAULT_COMMIT_INTERVAL
 
     if (args.algorithm):
         #combined = '\t'.join(hashlib.algorithms_available)
@@ -1635,10 +1640,10 @@ def run_from_command_line():
         if (isValidHashingFunction(stringToValidate=args.algorithm) == True):
             algorithm = args.algorithm.upper()
             if (verbosity):
-                printAndOrLog('Using {} for hashing functions.'.format(algorithm),args.log)
+                printAndOrLog('Using {} for hashing functions.'.format(algorithm),log)
         else:
             if (verbosity):
-                printAndOrLog("Invalid hashing function specified: {}. Using default {}.".format(args.algorithm,DEFAULT_HASH_FUNCTION),args.log)
+                printAndOrLog("Invalid hashing function specified: {}. Using default {}.".format(args.algorithm,DEFAULT_HASH_FUNCTION),log)
                 algorithm = DEFAULT_HASH_FUNCTION
     else:
         algorithm = DEFAULT_HASH_FUNCTION
@@ -1658,10 +1663,10 @@ def run_from_command_line():
         if (args.sfv.upper() == "MD5" or args.sfv.upper() == "SFV"): 
             sfv = args.sfv.upper() 
             if (verbosity):
-                printAndOrLog('Will generate an {} file.'.format(sfv),args.log) 
+                printAndOrLog('Will generate an {} file.'.format(sfv),log) 
         else:
             if (verbosity):
-                printAndOrLog("Invalid SFV/MD5 filetype specified: {}. Will not generate any additional file.".format(args.sfv),args.log)
+                printAndOrLog("Invalid SFV/MD5 filetype specified: {}. Will not generate any additional file.".format(args.sfv),log)
             sfv = ""
     else:
         sfv = ""
@@ -1671,36 +1676,39 @@ def run_from_command_line():
         recent = int(args.recent)
         if (recent):
             if (verbosity):
-                printAndOrLog("Only processing files <= {} days old.".format(args.recent),args.log)
+                printAndOrLog("Only processing files <= {} days old.".format(args.recent),log)
+        elif (recent == 0):
+            if (verbosity):
+                printAndOrLog("Processing all files, not just recent ones.",log)
         else:
             if (verbosity):
-                printAndOrLog("Invalid recent option selected: {}. Processing all files, not just recent ones.".format(args.recent),args.log)
+                printAndOrLog("Invalid recent option selected: {}. Processing all files, not just recent ones.".format(args.recent),log)
             recent = 0
     except Exception as err:
-        printAndOrLog("Invalid recent option selected: {}. Processing all files, not just recent ones.".format(args.recent),args.log)
+        printAndOrLog("Invalid recent option selected: {}. Processing all files, not just recent ones.".format(args.recent),log)
         recent = 0
 
     email = args.email 
     try:
         if (email == True):
             if (verbosity):
-                printAndOrLog("Sending emails on errors.".format(args.email),args.log)
+                printAndOrLog("Sending emails on errors.".format(args.email),log)
         elif (email == False):
             if (verbosity):
-                printAndOrLog("Will not sending emails on errors.".format(args.email),args.log)
+                printAndOrLog("Will not sending emails on errors.".format(args.email),log)
         else:
             if (verbosity):
-                printAndOrLog("Invalid email option selected: {}. Sending emails on errors.".format(args.email),args.log)
+                printAndOrLog("Invalid email option selected: {}. Sending emails on errors.".format(args.email),log)
                 email = True
 
     except Exception as err:
-        printAndOrLog("Invalid email option selected: {}. Sending emails on errors.".format(args.email),args.log)
+        printAndOrLog("Invalid email option selected: {}. Sending emails on errors.".format(args.email),log)
         email = True
  
  
     # normalize=False
     # if (args.normalize):
-    #     printAndOrLog("Only allowing one similarly named normalized file into the database.",args.log)
+    #     printAndOrLog("Only allowing one similarly named normalized file into the database.",log)
     #     normalize=True
 
     fix = args.fix
@@ -1709,31 +1717,31 @@ def run_from_command_line():
             fix = int(args.fix)
             if (fix == 0):
                 if (verbosity):
-                    printAndOrLog("Will not check problem files.",args.log)
+                    printAndOrLog("Will not check problem files.",log)
             elif (fix == 1):
                 if (verbosity):
-                    printAndOrLog("Will report files that have missing access and modification timestamps.",args.log)
+                    printAndOrLog("Will report files that have missing access and modification timestamps.",log)
             elif (fix == 2):
                 if (verbosity):
-                    printAndOrLog("Fixes files that have missing access and modification timestamps.",args.log)
+                    printAndOrLog("Fixes files that have missing access and modification timestamps.",log)
             elif (fix == 3):
                 if (verbosity):
-                    printAndOrLog("Will report files that have invalid characters",args.log)
+                    printAndOrLog("Will report files that have invalid characters",log)
             elif (fix == 4):
                 if (verbosity):
-                    printAndOrLog("Fixes files by removing invalid characters. NOT RECOMMENDED.",args.log)
+                    printAndOrLog("Fixes files by removing invalid characters. NOT RECOMMENDED.",log)
             elif (fix == 5):
                 if (verbosity):
-                    printAndOrLog("Will report files that have missing access and modification timestamps and invalid characters.",args.log)
+                    printAndOrLog("Will report files that have missing access and modification timestamps and invalid characters.",log)
             elif (fix == 6):
                 if (verbosity):
-                    printAndOrLog("Fixes files by removing invalid characters and adding missing access and modification times. NOT RECOMMENDED.",args.log)
+                    printAndOrLog("Fixes files by removing invalid characters and adding missing access and modification times. NOT RECOMMENDED.",log)
             else:
                 if (verbosity):
-                    printAndOrLog("Invalid test option selected: {}. Using default level; will report files that have missing access and modification timestamps and invalid characters.".format(args.fix),args.log)
+                    printAndOrLog("Invalid test option selected: {}. Using default level; will report files that have missing access and modification timestamps and invalid characters.".format(args.fix),log)
                     fix = 5
         except Exception as err:
-            printAndOrLog("Invalid test option selected: {}. Using default level; will report files that have missing access and modification timestamps and invalid characters.".format(args.fix),args.log)
+            printAndOrLog("Invalid test option selected: {}. Using default level; will report files that have missing access and modification timestamps and invalid characters.".format(args.fix),log)
             fix = 5
 
 
@@ -1760,7 +1768,7 @@ def run_from_command_line():
     try:
         bt.run()
     except BitrotException as bre:
-        printAndOrLog('Error: {}'.format(bre.args[1]),args.log)
+        printAndOrLog('Error: {}'.format(bre.args[1]),log)
         sys.exit(bre.args[0])
 
 if __name__ == '__main__':
