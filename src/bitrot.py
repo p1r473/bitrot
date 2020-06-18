@@ -913,8 +913,6 @@ class Bitrot(object):
                 HASHPROGRESSCOUNTER+=1
                 format_custom_text.update_mapping(f=progressFormat(path))
                 bar.update(HASHPROGRESSCOUNTER)
-                time.sleep(1.5)
-            
 
             if path not in missing_paths:
                 # We are not expecting this path, it wasn't in the database yet.
