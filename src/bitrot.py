@@ -913,7 +913,7 @@ class Bitrot(object):
                 HASHPROGRESSCOUNTER+=1
                 format_custom_text.update_mapping(f=progressFormat(path))
                 bar.update(HASHPROGRESSCOUNTER)
-
+          
             if path not in missing_paths:
                 # We are not expecting this path, it wasn't in the database yet.
                 # It's either new, a rename, or recently excluded. Let's handle that 
@@ -1383,7 +1383,7 @@ def run_from_command_line():
     SOURCE_DIR='.'
     parser = argparse.ArgumentParser(prog='bitrot')
     parser.add_argument(
-        '-l', '--follow-links', action='store_true',
+        '-l', '--follow-links', type=str2bool, nargs='?', const=True, default=False,
         help='follow symbolic links and store target files\' hashes. Once '
              'a path is present in the database, it will be checked against '
              'changes in content even if it becomes a symbolic link. In '
@@ -1713,10 +1713,26 @@ def run_from_command_line():
             if (verbosity):
                 printAndOrLog("Invalid email option selected: {}. Sending emails on errors.".format(args.email),log)
                 email = True
-
     except Exception as err:
         printAndOrLog("Invalid email option selected: {}. Sending emails on errors.".format(args.email),log)
         email = True
+
+    follow_links = args.follow_links 
+    try:
+        if (follow_links == True):
+            if (verbosity):
+                printAndOrLog("Following symlinks".format(args.follow_links),log)
+        elif (follow_links == False):
+            if (verbosity):
+                printAndOrLog("Will not follow symlinks".format(args.follow_links),log)
+        else:
+            if (verbosity):
+                printAndOrLog("Invalid email option selected: {}. Will not follow synlinks".format(args.follow_links),log)
+                follow_links = True
+
+    except Exception as err:
+        printAndOrLog("Invalid email option selected: {}. Will not follow synlinks".format(args.follow_links),log)
+        follow_links = True
  
  
     # normalize=False
@@ -1765,7 +1781,7 @@ def run_from_command_line():
         recent = recent,
         email = email,
         log = log,
-        follow_links = args.follow_links,
+        follow_links = follow_links,
         commit_interval = commit_interval,
         chunk_size = chunk_size,
         workers=workers,
