@@ -125,6 +125,16 @@ def print_statusline(msg: str, offset = 0):
     sys.stdout.flush()  # Some say they needed this, I didn't.
     print_statusline.last_msg = msg
 
+def str2bool(v):
+    if isinstance(v, bool):
+       return v
+    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+        return True
+    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+        return False
+    else:
+        raise argparse.ArgumentTypeError('Boolean value expected.')
+
 def hash(path, chunk_size,algorithm="",log=True,sfv=""):
     #0 byte files:
     # md5 d41d8cd98f00b204e9800998ecf8427e
@@ -1450,7 +1460,7 @@ def run_from_command_line():
     #     '-n', '--normalize', action='store_true',
     #     help='Only allow one unique normalized file into the DB at a time.')
     parser.add_argument(
-        '-e', '--email', default=True,
+        '-e', '--email', type=str2bool, nargs='?', const=True, default=True,
         help='email file integrity errors')
     parser.add_argument(
         '-g', '--log', default=1,
