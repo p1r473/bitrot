@@ -49,6 +49,7 @@ from email.mime.text import MIMEText
 import zlib
 import re
 import unicodedata
+import gc
 
 ### USER CONFIG
 DEFAULT_COMMIT_INTERVAL = 300
@@ -65,6 +66,7 @@ SOURCE_DIR='.'
 SOURCE_DIR_PATH = '.'
 DESTINATION_DIR=SOURCE_DIR
 HASHPROGRESSCOUNTER = 0
+LENPATHS = 0
 
 if sys.version[0] == '2':
     str = type(u'text')
@@ -617,7 +619,8 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                     progressCounter+=1
                     # statusString = "Files:" + str(progressCounter) + " Elapsed:" + recordTimeElapsed(start) + " " + progressFormat(path)
                     # print_statusline(statusString,15)
-                    bar.update(progressCounter)
+                    bar.update(progressCounter) 
+
     if verbosity:
         bar.finish()
         print()
@@ -666,9 +669,11 @@ class CustomETA(progressbar.widgets.ETA):
 
     def __call__(self, progress, data):
         # Run 'ETA.__call__' to update 'data'. This adds the 'eta_seconds'
+        global progresscounter
         data_plus_one = data.copy()
-        if (HASHPROGRESSCOUNTER == 1):
+        if (HASHPROGRESSCOUNTER < LENPATHS):
             data_plus_one['value'] += 1
+            data_plus_one['percentage'] = ((HASHPROGRESSCOUNTER + 1)/ LENPATHS * 100.0)
         formatted = progressbar.widgets.ETA.__call__(self, progress, data_plus_one)
 
         # ETA might not be available, if the maximum length is not available
@@ -708,6 +713,8 @@ class Bitrot(object):
         self.exclude_list = exclude_list
         self._last_reported_size = ''
         self._last_commit_ts = 0
+        #ProcessPoolExecutor runs each of your workers in its own separate child process. (CPU Bound)
+        #ThreadPoolExecutor runs each of your workers in separate threads within the main process. (IO Bound)
         self.pool = ProcessPoolExecutor(max_workers=workers)
         self.email = email
         self.log = log
@@ -761,6 +768,7 @@ class Bitrot(object):
         fixedPropertiesCounter = 0
         current_size = 0
         global HASHPROGRESSCOUNTER
+        global LENPATHS
         
 
         missing_paths = self.select_all_paths(cur)
@@ -796,9 +804,9 @@ class Bitrot(object):
 
         )
         FIMErrorCounter = 0;
-        paths_set = set((pathIterator) for pathIterator in paths)
-        paths_set = sorted(paths_set)
 
+        paths = sorted(paths)
+        LENPATHS = len(paths)
 
         #These are missing entries that have recently been excluded
         for pathIterator in missing_paths:
@@ -807,6 +815,8 @@ class Bitrot(object):
         for pathIterator in temporary_paths:
             missing_paths.discard(pathIterator)
             cur.execute('DELETE FROM bitrot WHERE path=?', (pathIterator,))
+        del temporary_paths
+        gc.collect()
 
         if self.verbosity:
             print("Hashing all files... Please wait...")
@@ -820,11 +830,12 @@ class Bitrot(object):
                 CustomETA(format_not_started='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s|ETA:%(eta)8s', format_finished='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s|ETA:%(eta)8s', format_zero='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format_NA='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s'),
                 progressbar.Bar(marker='#', left='|', right='|', fill=' ', fill_left=True),               
                 ])
-        start = time.time()
+            format_custom_text.update_mapping(f=progressFormat(paths[HASHPROGRESSCOUNTER]))
+            bar.update(HASHPROGRESSCOUNTER+1)
 
         #for pathIterator in sorted(paths):
         #    path = pathIterator #.decode(FSENCODING)
-        futures = [self.pool.submit(compute_one, pathIterator, self.chunk_size, self.algorithm, self.follow_links, self.log, self.sfv) for pathIterator in paths_set]
+        futures = [self.pool.submit(compute_one, pathIterator, self.chunk_size, self.algorithm, self.follow_links, self.log, self.sfv) for pathIterator in paths]
 
         for future in as_completed(futures):
             try:
@@ -911,8 +922,9 @@ class Bitrot(object):
             current_size += new_size
             if self.verbosity:
                 HASHPROGRESSCOUNTER+=1
-                format_custom_text.update_mapping(f=progressFormat(path))
-                bar.update(HASHPROGRESSCOUNTER)
+                if (HASHPROGRESSCOUNTER < len(paths)):
+                    format_custom_text.update_mapping(f=progressFormat(paths[HASHPROGRESSCOUNTER]))
+                    bar.update(HASHPROGRESSCOUNTER)
           
             if path not in missing_paths:
                 # We are not expecting this path, it wasn't in the database yet.
@@ -1027,9 +1039,9 @@ class Bitrot(object):
 
         if errors:
             if len(errors) == 1:
-                raise BitrotException(1, 'There was 1 error found.')
+                printAndOrLog('Error: There was 1 error found.',self.log)
             else:
-                raise BitrotException(1, 'There were {} errors found.'.format(len(errors)), errors)
+                printAndOrLog('Error: There were {} errors found.'.format(len(errors)),self.log)
 
     def select_all_paths(self, cur):
         """Return a set of all distinct paths in the bitrot database.
