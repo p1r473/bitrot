@@ -25,7 +25,7 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, wait, as_completed
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 import argparse
 import atexit
 import datetime
@@ -59,7 +59,7 @@ SERVER = smtplib.SMTP('smtp.emailprovider.com', 587)
 ###
 
 DOT_THRESHOLD = 2
-VERSION = (1, 0, 0)
+VERSION = (1, 0, 1)
 IGNORED_FILE_SYSTEM_ERRORS = {errno.ENOENT, errno.EACCES, errno.EINVAL}
 FSENCODING = sys.getfilesystemencoding()
 SOURCE_DIR='.'
@@ -136,6 +136,8 @@ def str2bool(v):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+def has_hidden_attribute(filepath):
+    return bool(os.stat(filepath).st_file_attributes & stat.FILE_ATTRIBUTE_HIDDEN)
 
 def hash(path, chunk_size,algorithm="",log=True,sfv=""):
     #0 byte files:
@@ -490,7 +492,7 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, test = 0, 
     return fixedRenameList, fixedRenameCounter
 
 def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included=(), 
-                        verbosity=1, follow_links=False, log=True, fix=0, warnings = ()): #normalize=False,
+                        verbosity=1, follow_links=False, log=True, hidden=True, fix=0, warnings = ()): #normalize=False,
     """list_existing_paths(b'/dir') -> ([path1, path2, ...], total_size)
 
     Returns a tuple with a set of existing files in 'directory' and its subdirectories
@@ -523,11 +525,12 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
         for f in files:
             path = os.path.join(pathIterator, f)
             path = normalize_path(path)
+                
             try:
                 path_encoded = path.encode(FSENCODING)
             except UnicodeDecodeError:
                 warnings.append(path)
-                printAndOrLog("Warning: cannot decode file name: {}".format(path), log, sys.stderr)
+                printAndOrLog("Warning: cannot encode file name: {}".format(path), log, sys.stderr)
                 continue
 
             try:
@@ -557,6 +560,8 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                 if (not stat.S_ISREG(st.st_mode) and not os.path.islink(path)) or any(exclude_this) or any([fnmatch(path_encoded, exc) for exc in excluded]) or (included and not any([fnmatch(path_encoded, inc) for inc in included]) and not any(include_this)):
                 #if not stat.S_ISREG(st.st_mode) or any([fnmatch(path, exc) for exc in excluded]):
                     excludedList.append(path)
+                elif (not hidden and has_hidden_attribute(path)):
+                        excludedList.append(path)
                 else:
                     # if (normalize):
                     #     oldMatch = ""
@@ -691,7 +696,7 @@ class BitrotException(Exception):
 
 class Bitrot(object):
     def __init__(
-        self, verbosity=1, email = False, log = False, test=0, recent = 0, follow_links=False, commit_interval=300,
+        self, verbosity=1, email = False, log = False, hidden = True, test=0, recent = 0, follow_links=False, commit_interval=300,
         chunk_size=DEFAULT_CHUNK_SIZE, workers=os.cpu_count(), include_list=[], exclude_list=[], algorithm="", sfv="MD5", fix=0, normalize=False
     ):
         self.verbosity = verbosity
@@ -709,6 +714,7 @@ class Bitrot(object):
         self.pool = ProcessPoolExecutor(max_workers=workers)
         self.email = email
         self.log = log
+        self.hidden = hidden
         self.startTime = time.time()
         self.algorithm = algorithm
         self.sfv = sfv
@@ -790,6 +796,7 @@ class Bitrot(object):
             follow_links=self.follow_links,
             verbosity=self.verbosity,
             log=self.log,
+            hidden=self.hidden,
             fix=self.fix,
             # normalize=self.normalize,
             warnings=warnings,
@@ -1477,7 +1484,10 @@ def run_from_command_line():
     #     help='Only allow one unique normalized file into the DB at a time.')
     parser.add_argument(
         '-e', '--email', type=str2bool, nargs='?', const=True, default=True,
-        help='email file integrity errors')
+        help='Email file integrity errors')
+    parser.add_argument(
+        '--hidden', type=str2bool, nargs='?', const=True, default=True,
+        help='Includes hidden files')
     parser.add_argument(
         '-g', '--log', default=1,
         help='logs activity')
@@ -1733,6 +1743,22 @@ def run_from_command_line():
         printAndOrLog("Invalid email option selected: {}. Sending emails on errors.".format(args.email),log)
         email = True
 
+    hidden = args.hidden 
+    try:
+        if (hidden == True):
+            if (verbosity):
+                printAndOrLog("Including hidden files.".format(args.hidden),log)
+        elif (hidden == False):
+            if (verbosity):
+                printAndOrLog("Will not include hidden files.".format(args.hidden),log)
+        else:
+            if (verbosity):
+                printAndOrLog("Invalid hidden option selected: {}. Including hidden files.".format(args.hidden),log)
+                hidden = True
+    except Exception as err:
+        printAndOrLog("Invalid hidden option selected: {}. Including hidden files.".format(args.hidden),log)
+        hidden = True
+
     follow_links = args.follow_links 
     try:
         if (follow_links == True):
@@ -1785,6 +1811,7 @@ def run_from_command_line():
         recent = recent,
         email = email,
         log = log,
+        hidden = hidden,
         follow_links = follow_links,
         commit_interval = commit_interval,
         chunk_size = chunk_size,
