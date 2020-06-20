@@ -51,12 +51,12 @@ import re
 import unicodedata
 import gc
 
-### USER CONFIG
+################### USER CONFIG ###################
 DEFAULT_COMMIT_INTERVAL = 300
 DEFAULT_CHUNK_SIZE = 1048576 # used to be 16384 - block size in HFS+; 4X the block size in ext4
 DEFAULT_HASH_FUNCTION = "SHA512"
 SERVER = smtplib.SMTP('smtp.emailprovider.com', 587)
-###
+###################################################
 
 DOT_THRESHOLD = 2
 VERSION = (1, 0, 1)
