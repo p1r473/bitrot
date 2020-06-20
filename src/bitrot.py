@@ -99,7 +99,7 @@ def printAndOrLog(stringToProcess,log=True, stream=sys.stdout):
         writeToLog(stringToProcess)
 
 def writeToLog(stringToWrite=""):
-    log_path = get_path(SOURCE_DIR_PATH,ext=b'log')
+    log_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'log')
     stringToWrite = cleanString(stringToWrite)
     try:
         with open(log_path, 'a') as logFile:
@@ -110,9 +110,9 @@ def writeToLog(stringToWrite=""):
 
 def writeToSFV(stringToWrite="", sfv="",log=True):
     if (sfv == "MD5"):
-        sfv_path = get_path(SOURCE_DIR_PATH,ext=b'md5')
+        sfv_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'md5')
     elif (sfv == "SFV"):
-        sfv_path = get_path(SOURCE_DIR_PATH,ext=b'sfv')
+        sfv_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'sfv')
     try:
         with open(sfv_path, 'a') as sfvFile:
             sfvFile.write(stringToWrite)
@@ -418,7 +418,7 @@ def get_sqlite3_cursor(path, test=0, copy=False):
     return conn
 
 
-def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, warnings = (), fixedRenameList = (), fixedRenameCounter = 0):
+def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, test = 0, fix=5, warnings = (), fixedRenameList = (), fixedRenameCounter = 0):
 #   Use os.getcwd() instead of "." since it doesn't seem to be resolved the way you want. This will be illustrated in the diagnostics function.
 #   Use relative path renaming by os.chdir(root). Of course using correct absolute paths also works, but IMHO relative paths are just more elegant.
 #   Pass an unambiguous string into os.walk() as others have mentioned.
@@ -431,23 +431,23 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
     for root, dirs, files in os.walk(directory, topdown=False):
         for file in files:
             if (isDirtyString(file)):
-                if (fix == 3) or (fix == 5):
+                if (fix == 2) or (fix == 3):
                     warnings.append(file)
                     printAndOrLog('Warning: Invalid character detected in filename\'{}\''.format(os.path.join(root, file)), log, sys.stderr)
-                try:
-                    # chdir before renaming
-                    #os.chdir(root)
-                    #fullfilename=os.path.abspath(file)
-                    #os.rename(f, cleanString(file))  # relative path, more elegant
-                    pathBackup = file
-                    if (fix == 4) or (fix == 6):
-                        os.rename(os.path.join(root, f), os.path.join(root, cleanString(file)))
-                    path = cleanString(file)
-
-                except Exception as ex:
-                    warnings.append(file)
-                    printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(os.path.join(root, f),ex), log ,sys.stderr)
-                    continue
+                if (not test):
+                    try:
+                        # chdir before renaming
+                        #os.chdir(root)
+                        #fullfilename=os.path.abspath(file)
+                        #os.rename(f, cleanString(file))  # relative path, more elegant
+                        pathBackup = file
+                        if (fix == 2) or (fix == 3):
+                            os.rename(os.path.join(root, f), os.path.join(root, cleanString(file)))
+                        path = cleanString(file)
+                    except Exception as ex:
+                        warnings.append(file)
+                        printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(os.path.join(root, f),ex), log ,sys.stderr)
+                        continue
                 else:
                     fixedRenameList.append([])
                     fixedRenameList.append([])
@@ -461,29 +461,29 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
                         bar.update(progressCounter)
         for directory in dirs:
             if (isDirtyString(directory)):
-                try:
-                    # chdir before renaming
-                    #os.chdir(root)
-                    #fullfilename=os.path.abspath(d)
-                    pathBackup = directory
-                    if (fix == 4) or (fix == 6):
-                        os.rename(os.path.join(root, directory), os.path.join(root, cleanString(d)))
-                    #os.rename(d, cleanString(d))  # relative path, more elegant
-                    cleanedDirctory = cleanString(directory)
-
-                except Exception as ex:
-                    warnings.append(d)
-                    printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(os.path.join(root, directory),ex), log, sys.stderr)
-                    continue
-                else:
-                    fixedRenameList.append([])
-                    fixedRenameList.append([])
-                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, pathBackup))
-                    fixedRenameList[fixedRenameCounter].append(os.path.join(root, cleanedDirctory))
-                    fixedRenameCounter += 1
-                    if verbosity:
-                        progressCounter+=1
-                        bar.update(progressCounter)
+                if (not test):
+                    try:
+                        # chdir before renaming
+                        #os.chdir(root)
+                        #fullfilename=os.path.abspath(d)
+                        pathBackup = directory
+                        if (fix == 2) or (fix == 3):
+                            os.rename(os.path.join(root, directory), os.path.join(root, cleanString(d)))
+                        #os.rename(d, cleanString(d))  # relative path, more elegant
+                        cleanedDirctory = cleanString(directory)
+                    except Exception as ex:
+                        warnings.append(d)
+                        printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(os.path.join(root, directory),ex), log, sys.stderr)
+                        continue
+                    else:
+                        fixedRenameList.append([])
+                        fixedRenameList.append([])
+                        fixedRenameList[fixedRenameCounter].append(os.path.join(root, pathBackup))
+                        fixedRenameList[fixedRenameCounter].append(os.path.join(root, cleanedDirctory))
+                        fixedRenameCounter += 1
+                        if verbosity:
+                            progressCounter+=1
+                            bar.update(progressCounter)
     if verbosity:
         print()
         bar.finish()
@@ -501,11 +501,14 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
     'follow_links' is False (the default).  All entries present in 'expected'
     must be files (can't be directories or symlinks).
     """
+    # excluded = [get_relative_path(pathIterator) for pathIterator in excluded]
+    # excluded = [pathIterator.decode(FSENCODING) for pathIterator in excluded]
 
     paths = set()
     total_size = 0
     excludedList = []
     progressCounter=0
+
     if verbosity:
         print("Mapping all files... Please wait...")
         start = time.time()
@@ -543,12 +546,19 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                 # ['dir1', 'dir2', 'file.txt']
                 # and match on any of these components
                 # so we could use 'dir*', '*2', '*.txt', etc. to exclude anything
+
                 exclude_this = [fnmatch(file.encode(FSENCODING), wildcard)
                                 for file in pathIterator.split(os.path.sep)
                                 for wildcard in excluded]
                 include_this = [fnmatch(file.encode(FSENCODING), wildcard)
                                 for file in pathIterator.split(os.path.sep)
                                 for wildcard in included]
+                
+                # print(path)
+                # print(path_encoded)
+                # print(excluded)
+                #print(exclude_this)
+                
                 if (not stat.S_ISREG(st.st_mode) and not os.path.islink(path)) or any(exclude_this) or any([fnmatch(path_encoded, exc) for exc in excluded]) or (included and not any([fnmatch(path_encoded, inc) for inc in included]) and not any(include_this)):
                 #if not stat.S_ISREG(st.st_mode) or any([fnmatch(path, exc) for exc in excluded]):
                     excludedList.append(path)
@@ -721,15 +731,17 @@ class Bitrot(object):
     def run(self):
         check_sha512_integrity(verbosity=self.verbosity, log=self.log)
 
-        bitrot_sha512 = get_path(SOURCE_DIR_PATH,ext=b'sha512')
-        bitrot_log = get_path(SOURCE_DIR_PATH,ext=b'log')
-        bitrot_db = get_path(SOURCE_DIR_PATH,b'db')
-        bitrot_sfv = get_path(SOURCE_DIR_PATH,ext=b'sfv')
-        bitrot_md5 = get_path(SOURCE_DIR_PATH,ext=b'md5')
+        bitrot_sha512 = get_relative_path(get_absolute_path(SOURCE_DIR_PATH,ext=b'sha512'))
+        bitrot_log = get_relative_path(get_absolute_path(SOURCE_DIR_PATH,ext=b'log'))
+        bitrot_db = get_relative_path(get_absolute_path(SOURCE_DIR_PATH,b'db'))
+        bitrot_sfv = get_relative_path(get_absolute_path(SOURCE_DIR_PATH,ext=b'sfv'))
+        bitrot_md5 = get_relative_path(get_absolute_path(SOURCE_DIR_PATH,ext=b'md5'))
 
-        #bitrot_db = os.path.basename(get_path())
-        #bitrot_sha512 = os.path.basename(get_path(ext=b'sha512'))
-        #bitrot_log = os.path.basename(get_path(ext=b'log'))
+
+
+        #bitrot_db = os.path.basename(get_absolute_path())
+        #bitrot_sha512 = os.path.basename(get_absolute_path(ext=b'sha512'))
+        #bitrot_log = os.path.basename(get_absolute_path(ext=b'log'))
 
         try:
             conn = get_sqlite3_cursor(bitrot_db, test=self.test)
@@ -770,6 +782,7 @@ class Bitrot(object):
             SOURCE_DIR,
             verbosity=self.verbosity,
             log=self.log,
+            test=self.test,
             fix=self.fix,
             warnings=warnings,
             fixedRenameList = fixedRenameList,
@@ -789,6 +802,7 @@ class Bitrot(object):
             warnings=warnings,
 
         )
+
         FIMErrorCounter = 0;
 
         paths = sorted(paths)
@@ -817,8 +831,9 @@ class Bitrot(object):
                 CustomETA(format_not_started='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s|ETA:%(eta)8s', format_finished='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s|ETA:%(eta)8s', format_zero='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format_NA='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s'),
                 progressbar.Bar(marker='#', left='|', right='|', fill=' ', fill_left=True),               
                 ])
-            format_custom_text.update_mapping(f=progressFormat(paths[HASHPROGRESSCOUNTER]))
-            bar.update(HASHPROGRESSCOUNTER+1)
+            if (len(paths) > 0):
+                format_custom_text.update_mapping(f=progressFormat(paths[HASHPROGRESSCOUNTER]))
+                bar.update(HASHPROGRESSCOUNTER+1)
 
         #for pathIterator in sorted(paths):
         #    path = pathIterator #.decode(FSENCODING)
@@ -845,17 +860,17 @@ class Bitrot(object):
             if not new_mtime and not new_atime:
                 new_mtime = int(nowTime)
                 new_atime = int(nowTime)
-                if (self.fix  == 1) or (self.fix  == 5):
+                if (self.fix  == 1) or (self.fix  == 3):
                     warnings.append(path)
                     printAndOrLog('Warning: \'{}\' has an invalid access and modification date. Try running with -f to fix.'.format(path),self.log)
             elif not (new_mtime):
                 new_mtime = int(nowTime)
-                if (self.fix  == 1) or (self.fix  == 5):
+                if (self.fix  == 1) or (self.fix  == 3):
                     warnings.append(path)
                     printAndOrLog('Warning: \'{}\' has an invalid modification date. Try running with -f to fix.'.format(path),self.log)
             elif not (new_atime):
                 new_atime = int(nowTime)
-                if (self.fix  == 1) or (self.fix  == 5):
+                if (self.fix  == 1) or (self.fix  == 3):
                     warnings.append(path)
                     printAndOrLog('Warning: \'{}\' has an invalid access date. Try running with -f to fix.'.format(path),self.log)
 
@@ -872,35 +887,35 @@ class Bitrot(object):
                     continue
 
             fixPropertyFailed = False
-
-            if not new_mtime_orig and not new_atime_orig:
-                if (self.fix  == 2) or (self.fix  == 6):
-                    try:
-                        os.utime(path, (nowTime,nowTime))
-                    except Exception as ex:
-                        warnings.append(f)
-                        fixPropertyFailed = True
-                        printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(path,ex), self.log, sys.stderr)
-            elif not (new_mtime_orig):
-                if (self.fix  == 2) or (self.fix  == 6):
-                    try:
-                        os.utime(path, (new_atime,nowTime))
-                    except Exception as ex:
-                        warnings.append(path)
-                        fixPropertyFailed = True
-                        printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(path,ex), self.log, sys.stderr)
-            elif not (new_atime_orig):
-                if (self.fix  == 2) or (self.fix  == 6):
-                    try:
-                        os.utime(path, (nowTime,new_mtime))
-                    except Exception as ex:
-                        warnings.append(f)
-                        fixPropertyFailed = True
-                        printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(path,ex), self.log, sys.stderr)
+            if (not self.test):
+                if not new_mtime_orig and not new_atime_orig:
+                    if (self.fix  == 1) or (self.fix  == 3):
+                        try:
+                            os.utime(path, (nowTime,nowTime))
+                        except Exception as ex:
+                            warnings.append(f)
+                            fixPropertyFailed = True
+                            printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(path,ex), self.log, sys.stderr)
+                elif not (new_mtime_orig):
+                    if (self.fix  == 1) or (self.fix  == 3):
+                        try:
+                            os.utime(path, (new_atime,nowTime))
+                        except Exception as ex:
+                            warnings.append(path)
+                            fixPropertyFailed = True
+                            printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(path,ex), self.log, sys.stderr)
+                elif not (new_atime_orig):
+                    if (self.fix  == 1) or (self.fix  == 3):
+                        try:
+                            os.utime(path, (nowTime,new_mtime))
+                        except Exception as ex:
+                            warnings.append(f)
+                            fixPropertyFailed = True
+                            printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(path,ex), self.log, sys.stderr)
 
             if not new_mtime_orig or not new_atime_orig:
                 if (fixPropertyFailed == False):
-                    if (self.fix  == 1) or (self.fix  == 5) or (self.fix  == 2) or (self.fix  == 6):
+                    if (self.fix  == 1) or (self.fix  == 3):
                             fixedPropertiesList.append([])
                             fixedPropertiesList.append([])
                             fixedPropertiesList[fixedPropertiesCounter].append(path)
@@ -1164,7 +1179,7 @@ class Bitrot(object):
                    printAndOrLog('{}'.format(pathIterator,log))
 
         if fixedRenameList:
-            if ((self.fix == 4) or (self.fix == 6)) and (self.verbosity >= 1):
+            if ((self.fix == 2) or (self.fix == 3)) and (self.verbosity >= 1):
                 if (len(fixedRenameList) == 1):
                     printAndOrLog('1 filename fixed:',log)
                 else:
@@ -1174,7 +1189,7 @@ class Bitrot(object):
                     printAndOrLog('  \'{}\' to \'{}\''.format(fixedRenameList[i][0],fixedRenameList[i][1]),log)
        
         if fixedPropertiesList:
-            if ((self.fix == 2) or (self.fix == 6)) and (self.verbosity >= 1):
+            if ((self.fix == 2) or (self.fix == 3)) and (self.verbosity >= 1):
                 if (len(fixedPropertiesList) == 1):
                     printAndOrLog('1 file property fixed:',log)
                 else:
@@ -1189,7 +1204,7 @@ class Bitrot(object):
         #        writeToLog('\n')
 
 
-    def handle_unknown_path(self, cur, new_path, new_mtime, new_hash, paths, hashes, testing, log):
+    def handle_unknown_path(self, cur, new_path, new_mtime, new_hash, paths, hashes, test, log):
         """Either add a new entry to the database or update the existing entry
         on rename.
         'cur' is the database cursor. 'new_path' is the new Unicode path.
@@ -1204,7 +1219,7 @@ class Bitrot(object):
             if old_path not in paths:
                 # File of the same hash used to exist but no longer does.
                 # Let's treat 'new_path' as a renamed version of that 'old_path'.
-                if (testing == 0):
+                if (test == 0):
                     cur.execute('UPDATE bitrot SET mtime=?, path=?, timestamp=? WHERE path=?',(new_mtime, new_path, ts(), old_path),)
                 return old_path
 
@@ -1213,7 +1228,7 @@ class Bitrot(object):
             # currently stored paths for this hash still point to existing files.
             # Let's insert a new entry for what appears to be a new file.
             try:
-                if (testing == 0):
+                if (test == 0):
                     cur.execute('INSERT INTO bitrot VALUES (?, ?, ?, ?)',(new_path, new_mtime, new_hash, ts()),)
             except Exception as e:
                 printAndOrLog("Could not save hash: \'{}\'. Received error: {}".format(new_path, e),log)
@@ -1222,11 +1237,22 @@ class Bitrot(object):
 
 
 
-def get_path(directory=b'.', ext=b'db'):
+def get_absolute_path(directory=b'.', ext=b'db'):
     """Compose the path to the selected bitrot file."""
     directory = os.fsencode(directory)
     ext = os.fsencode(ext)
-    return os.path.join(directory, b'.bitrot.' + ext)
+    abspath = os.path.join(directory, b'.bitrot.' + ext)
+    return abspath
+
+def get_relative_path(directory=b'.'):
+    relative_path = os.path.relpath(directory)
+    relative_path = relative_path.decode(FSENCODING)
+    relative_path = os.path.join('.\\',relative_path)
+    relative_path = bytes(relative_path, FSENCODING)
+
+    return relative_path
+
+
 
 def stable_sum(bitrot_db=None):
     """Calculates a stable SHA512 of all entries in the database.
@@ -1234,9 +1260,10 @@ def stable_sum(bitrot_db=None):
     Useful for comparing if two directories hold the same data, as it ignores
     timing information."""
     if bitrot_db is None:
-        bitrot_db = get_path(SOURCE_DIR_PATH,'db')
+        bitrot_db = get_absolute_path(SOURCE_DIR_PATH,'db')
+        bitrot_db = bitrot_db.decode(FSENCODING)
         if not os.path.exists(bitrot_db):
-            print("Database does not exist. Cannot calculate sum.")
+            print("Database {} does not exist. Cannot calculate sum.".format(bitrot_db))
             exit()
     digest = hashlib.sha512()
     conn = get_sqlite3_cursor(bitrot_db,1)
@@ -1249,7 +1276,8 @@ def stable_sum(bitrot_db=None):
     return digest.hexdigest()
 
 def check_sha512_integrity(verbosity=1, log=True):
-    sha512_path = get_path(SOURCE_DIR_PATH,ext=b'sha512')
+    sha512_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'sha512')
+    sha512_path = sha512_path.decode(FSENCODING)
 
     if verbosity:
         printAndOrLog('Checking bitrot.db integrity...\n',log)
@@ -1267,7 +1295,8 @@ def check_sha512_integrity(verbosity=1, log=True):
     if not os.path.exists(sha512_path):
         return
 
-    bitrot_db = get_path(SOURCE_DIR_PATH,'db')
+    bitrot_db = get_absolute_path(SOURCE_DIR_PATH,'db')
+    bitrot_db = bitrot_db.decode(FSENCODING)
     digest = hashlib.sha512()
 
     try:
@@ -1302,7 +1331,8 @@ def check_sha512_integrity(verbosity=1, log=True):
 
 def update_sha512_integrity(verbosity=1, log=True):
     old_sha512 = 0
-    sha512_path = get_path(SOURCE_DIR_PATH,ext=b'sha512')
+    sha512_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'sha512')
+    sha512_path = sha512_path.decode(FSENCODING)
 
     if os.path.exists(sha512_path):
         try:
@@ -1315,7 +1345,7 @@ def update_sha512_integrity(verbosity=1, log=True):
             printAndOrLog("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e),log)
             raise Exception("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e))    
 
-    bitrot_db = get_path(SOURCE_DIR_PATH,'db')
+    bitrot_db = get_absolute_path(SOURCE_DIR_PATH,'db')
     digest = hashlib.sha512()
     if os.path.exists(bitrot_db):
         try:
@@ -1477,16 +1507,9 @@ def run_from_command_line():
         '-d', '--destination', default='',
         help="Root of destination folder. Default is current directory.")
 
-
+    queuedMessages=[]
     args = parser.parse_args()
     log = args.log
-
-    if args.sum:
-        try:
-            printAndOrLog("Hash of {} is \n{}".format(SOURCE_DIR_PATH,stable_sum()),log)
-            exit()
-        except RuntimeError as e:
-            printAndOrLog(str(e), log, sys.stderr)
 
     try:
         verbosity = int(args.verbose)
@@ -1499,10 +1522,10 @@ def run_from_command_line():
         elif (verbosity == 5):
             printAndOrLog("Verbosity option selected: {}. List missing, fixed, new, renamed, updated entries, excluded files, and existing files.".format(args.verbose),log)
         elif not (verbosity == 0) and not (verbosity == 1):
-            printAndOrLog("Invalid test option selected: {}. Using default level 1.".format(args.verbose),log)
+            printAndOrLog("Invalid verbosity option selected: {}. Using default level 1.".format(args.verbose),log)
             verbosity = 1
     except Exception as err:
-        printAndOrLog("Invalid test option selected: {}. Using default level 1.".format(args.verbose),log)
+        printAndOrLog("Invalid verbosity option selected: {}. Using default level 1.".format(args.verbose),log)
         verbosity = 1
 
 
@@ -1510,40 +1533,49 @@ def run_from_command_line():
         if not args.source:
             SOURCE_DIR = '.'
             if verbosity:
-                printAndOrLog('Using current directory for file list.',log)
+                queuedMessages.append("Using current directory for file list.")
         else:
             os.chdir(args.source)
             SOURCE_DIR_PATH = args.source
             if verbosity:
-                printAndOrLog('Source directory \'{}\'.'.format(args.source),log)
+                queuedMessages.append("Source directory \''" + args.source + "\'")
     except Exception as err:
             SOURCE_DIR = '.'
             if verbosity:
-                printAndOrLog("Invalid source directory: \'{}\'. Using current directory. Received error: {}".format(args.source, err),log)
+                queuedMessages.append("Invalid source directory: \''" + args.source + "\'. Using current directory. Received error: " + err)
 
-    log_path = get_path(SOURCE_DIR_PATH,ext=b'log')
+    log_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'log')
+    
+    if args.sum:
+        try:
+            printAndOrLog("Hash of {} is \n{}".format(SOURCE_DIR_PATH,stable_sum()),log)
+            exit()
+        except RuntimeError as e:
+            printAndOrLog(str(e), log, sys.stderr)
+
     if (verbosity and log):
         writeToLog('\n=============================\n')
         writeToLog('Log started at ')
         writeToLog(datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
-            
+
+    DESTINATION_DIR = SOURCE_DIR
+
     try:
         test = int(args.test)
         if (verbosity):
             if (test == 0):
-                printAndOrLog("Testing-only mode disabled.",log)
+                queuedMessages.append("Testing-only mode disabled.")
             elif (test == 1):
-                printAndOrLog("Just testing against an existing database, won\'t update anything.",log)
+                queuedMessages.append("Just testing against an existing database, won\'t update anything.")
             elif (test == 2):
-                printAndOrLog("Won\'t compare dates, only hashes",log)
+                queuedMessages.append("Won\'t compare dates, only hashes")
             else:
-                printAndOrLog("Invalid test option selected: {}. Using default level 0: testing-only disabled.".format(args.test),log)
+                queuedMessages.append("Invalid test option selected: " + args.test +". Using default level 0: testing-only disabled.")
                 test = 0
     except Exception as err:
-        printAndOrLog("Invalid test option selected: {}. Using default level 0: testing-only disabled.".format(args.test),log)
+        queuedMessages.append("Invalid test option selected: " + args.test +". Using default level 0: testing-only disabled.")
         test = 0
 
-    DESTINATION_DIR = SOURCE_DIR
     try:
         if not args.destination:
             if verbosity:
@@ -1551,7 +1583,7 @@ def run_from_command_line():
         else:
             if (test == 0 and args.destination):
                 if verbosity:
-                    printAndOrLog("Setting destination only works in testing mode. Please see --test.",log)
+                    printAndOrLog("Setting destination only works in testing mode. Please see --test. Destination directory \'{}\'".format(args.destination),log)
                     printAndOrLog('Using current directory for destination file list.',log)
             else:
                 DESTINATION_DIR = args.destination
@@ -1559,6 +1591,12 @@ def run_from_command_line():
                     printAndOrLog('Destination directory \'{}\'.'.format(args.destination),log)
     except Exception as err:
             printAndOrLog("Invalid Destination directory: \'{}\'. Using current directory. Received error: {}".format(args.destination, err),log) 
+
+    for message in queuedMessages:
+        printAndOrLog(message,log)
+    del queuedMessages
+    gc.collect()
+
 
     include_list = []
     if args.include_list:
@@ -1649,8 +1687,8 @@ def run_from_command_line():
             printAndOrLog("Invalid hashing function specified: {}. Using default {}.".format(args.algorithm,DEFAULT_HASH_FUNCTION),log)
             algorithm = DEFAULT_HASH_FUNCTION
 
-    sfv_path = get_path(SOURCE_DIR_PATH,ext=b'sfv')
-    md5_path = get_path(SOURCE_DIR_PATH,ext=b'md5')
+    sfv_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'sfv')
+    md5_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'md5')
 
     try:
         os.remove(sfv_path)
@@ -1734,29 +1772,20 @@ def run_from_command_line():
                 printAndOrLog("Will not check problem files.",log)
         elif (fix == 1):
             if (verbosity):
-                printAndOrLog("Will report files that have missing access and modification timestamps.",log)
+                printAndOrLog("Fixes files that have missing access and modification timestamps. To report only, also use -t or --test",log)
         elif (fix == 2):
             if (verbosity):
-                printAndOrLog("Fixes files that have missing access and modification timestamps.",log)
+                printAndOrLog("Fixes files by removing invalid characters. To report only, also use -t or --test. NOT RECOMMENDED.",log)
         elif (fix == 3):
             if (verbosity):
-                printAndOrLog("Will report files that have invalid characters",log)
-        elif (fix == 4):
-            if (verbosity):
-                printAndOrLog("Fixes files by removing invalid characters. NOT RECOMMENDED.",log)
-        elif (fix == 5):
-            if (verbosity):
-                printAndOrLog("Will report files that have missing access and modification timestamps and invalid characters.",log)
-        elif (fix == 6):
-            if (verbosity):
-                printAndOrLog("Fixes files by removing invalid characters and adding missing access and modification times. NOT RECOMMENDED.",log)
+                printAndOrLog("Fixes files by removing invalid characters and adding missing access and modification times.  To report only, also use -t or --test. NOT RECOMMENDED.",log)
         else:
             if (verbosity):
-                printAndOrLog("Invalid test option selected: {}. Using default level; will report files that have missing access and modification timestamps and invalid characters.".format(args.fix),log)
-                fix = 5
+                printAndOrLog("Invalid test option selected: {}. Using default level; will not report files that have missing access and modification timestamps and invalid characters.".format(args.fix),log)
+                fix = 0
     except Exception as err:
-        printAndOrLog("Invalid test option selected: {}. Using default level; will report files that have missing access and modification timestamps and invalid characters.".format(args.fix),log)
-        fix = 5
+        printAndOrLog("Invalid test option selected: {}. Using default level; will not report files that have missing access and modification timestamps and invalid characters.".format(args.fix),log)
+        fix = 0
 
     bt = Bitrot(
         verbosity = verbosity,
