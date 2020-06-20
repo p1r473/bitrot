@@ -26,7 +26,6 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
-from goto import with_goto
 import argparse
 import atexit
 import datetime
@@ -34,6 +33,8 @@ from datetime import timedelta
 import errno
 import hashlib
 import os
+from os import path
+import pathlib
 import shutil
 import sqlite3
 import stat
@@ -1565,15 +1566,20 @@ def run_from_command_line():
             if verbosity:
                 printAndOrLog('Using current directory for file list.',args.log)
         else:
-            os.chdir(args.source)
-            SOURCE_DIR_PATH = args.source
-            if verbosity:
-                printAndOrLog('Source directory \'{}\'.'.format(args.source),args.log)
+            if (os.path.isdir(args.source) == True):
+                os.chdir(args.source)
+                SOURCE_DIR_PATH = args.source
+                if verbosity:
+                    printAndOrLog('Source directory \'{}\'.'.format(args.source),args.log)
+            else:
+                printAndOrLog("Invalid Source directory: \'{}\'.\nExiting.".format(args.source),log) 
+                exit()
     except Exception as err:
             SOURCE_DIR = '.'
             if verbosity:
-                printAndOrLog("Invalid source directory: \'{}\'. Using current directory. Received error: {}".format(args.source, err),args.log)
-
+                printAndOrLog("Invalid source directory: \'{}\'. Received error: {}. \nExiting.".format(args.source, err),args.log)
+                exit()  
+   
     log_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'log')
     
     if args.sum:
@@ -1606,21 +1612,23 @@ def run_from_command_line():
         queuedMessages.append("Invalid test option selected: " + args.test +". Using default level 0: testing-only disabled.")
         test = 0
 
-    try:
-        if not args.destination:
+
+    if not args.destination:
+        if verbosity:
+            printAndOrLog('Using current directory for destination file list.',log)
+    else:
+        if (test == 0 and args.destination):
             if verbosity:
-                printAndOrLog('Using current directory for destination file list.',log)
+                printAndOrLog("Setting destination only works in testing mode. Please see --test. \nExiting.",log)
+                exit()
         else:
-            if (test == 0 and args.destination):
-                if verbosity:
-                    printAndOrLog("Setting destination only works in testing mode. Please see --test. Exiting.",log)
-                    exit()
-            else:
+            if (os.path.isdir(args.destination) == True):
                 DESTINATION_DIR = args.destination
                 if verbosity:
                     printAndOrLog('Destination directory \'{}\'.'.format(args.destination),log)
-    except Exception as err:
-            printAndOrLog("Invalid Destination directory: \'{}\'. Using current directory. Received error: {}".format(args.destination, err),log) 
+            else:
+                printAndOrLog("Invalid Destination directory: \'{}\'.\nExiting.".format(args.destination),log) 
+                exit()
 
     for message in queuedMessages:
         printAndOrLog(message,log)
