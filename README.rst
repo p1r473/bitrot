@@ -54,6 +54,10 @@ file in the `tests` directory to run it.
 
 Change Log
 ----------
+1.0.1
+~~~~
+* Can now include hidden files with --hidden
+
 1.0.0
 ~~~~~
 * Significantly sped up execution on solid state drives by using a process pool executor to calculate SHA1 hashes and perform stat() calls; use -w1 if your runs on slow magnetic drives were negatively affected by this change
