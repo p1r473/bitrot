@@ -1576,8 +1576,8 @@ def run_from_command_line():
         else:
             if (test == 0 and args.destination):
                 if verbosity:
-                    printAndOrLog("Setting destination only works in testing mode. Please see --test. Destination directory \'{}\'".format(args.destination),log)
-                    printAndOrLog('Using current directory for destination file list.',log)
+                    printAndOrLog("Setting destination only works in testing mode. Please see --test. Exiting.",log)
+                    exit()
             else:
                 DESTINATION_DIR = args.destination
                 if verbosity:
