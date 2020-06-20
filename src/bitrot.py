@@ -92,8 +92,8 @@ def normalize_path(path):
     else:
         return path
 
-def printAndOrLog(stringToProcess,log=True):
-    print(stringToProcess)
+def printAndOrLog(stringToProcess,log=True, stream=sys.stdout):
+    print(stringToProcess,file=stream)
     if (log):
         writeToLog('\n')
         writeToLog(stringToProcess)
@@ -376,8 +376,8 @@ def ts():
     return datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S%z')
 
 
-def get_sqlite3_cursor(path, copy=False):
-    if copy:
+def get_sqlite3_cursor(path, test=0, copy=False):
+    if (copy) and (not test):
         if not os.path.exists(path):
             raise ValueError("Error: bitrot database at {} does not exist.".format(path))
             printAndOrLog("Error: bitrot database at {} does not exist.".format(path),log)
@@ -408,11 +408,12 @@ def get_sqlite3_cursor(path, copy=False):
     atexit.register(conn.close)
     cur = conn.cursor()
     tables = set(t for t, in cur.execute('SELECT name FROM sqlite_master'))
-    if 'bitrot' not in tables:
-        cur.execute('CREATE TABLE bitrot (path TEXT PRIMARY KEY, '
-                    'mtime INTEGER, hash TEXT, timestamp TEXT)')
-    if 'bitrot_hash_idx' not in tables:
-        cur.execute('CREATE INDEX bitrot_hash_idx ON bitrot (hash)')
+    if (test == 0):
+        if 'bitrot' not in tables:
+            cur.execute('CREATE TABLE bitrot (path TEXT PRIMARY KEY, '
+                        'mtime INTEGER, hash TEXT, timestamp TEXT)')
+        if 'bitrot_hash_idx' not in tables:
+            cur.execute('CREATE INDEX bitrot_hash_idx ON bitrot (hash)')
     atexit.register(conn.commit)
     return conn
 
@@ -432,7 +433,7 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
             if (isDirtyString(file)):
                 if (fix == 3) or (fix == 5):
                     warnings.append(file)
-                    printAndOrLog('Warning: Invalid character detected in filename\'{}\''.format(os.path.join(root, file)),log)
+                    printAndOrLog('Warning: Invalid character detected in filename\'{}\''.format(os.path.join(root, file)), log, sys.stderr)
                 try:
                     # chdir before renaming
                     #os.chdir(root)
@@ -445,7 +446,7 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
 
                 except Exception as ex:
                     warnings.append(file)
-                    printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(os.path.join(root, f),ex),log)
+                    printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(os.path.join(root, f),ex), log ,sys.stderr)
                     continue
                 else:
                     fixedRenameList.append([])
@@ -472,7 +473,7 @@ def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, fix=5, war
 
                 except Exception as ex:
                     warnings.append(d)
-                    printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(os.path.join(root, directory),ex),log)
+                    printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(os.path.join(root, directory),ex), log, sys.stderr)
                     continue
                 else:
                     fixedRenameList.append([])
@@ -522,12 +523,8 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
             try:
                 path_encoded = path.encode(FSENCODING)
             except UnicodeDecodeError:
-                binary_stderr = getattr(sys.stderr, 'buffer', sys.stderr)
                 warnings.append(path)
-                binary_stderr.write(b"\rWarning: cannot decode file name: ")
-                binary_stderr.write(path)
-                binary_stderr.write(b"\n")
-                printAndOrLog("Warning: cannot decode file name: {}".format(path),log)
+                printAndOrLog("Warning: cannot decode file name: {}".format(path), log, sys.stderr)
                 continue
 
             try:
@@ -642,13 +639,7 @@ def compute_one(path, chunk_size, algorithm="", follow_links=False, log=True,sfv
             # The file disappeared between listing existing paths and
             # this run or is (temporarily?) locked with different
             # permissions. We'll just skip it for now.
-            print(
-                '\rwarning: `{}` is currently unavailable for '
-                'reading: {}'.format(
-                    path, ex,
-                ),
-                file=sys.stderr,
-            )
+            printAndOrLog('warning: `{}` is currently unavailable for reading: {}'.format(path, ex), log, sys.stderr)
             raise BitrotException
 
         raise   # Not expected? https://github.com/ambv/bitrot/issues/
@@ -656,12 +647,7 @@ def compute_one(path, chunk_size, algorithm="", follow_links=False, log=True,sfv
     try:
         new_hash = hash(path, chunk_size, algorithm, log, sfv)
     except (IOError, OSError) as e:
-        print(
-            '\rwarning: cannot compute hash of {} [{}]'.format(
-                path, errno.errorcode[e.args[0]],
-            ),
-            file=sys.stderr,
-        )
+        printAndOrLog('warning: cannot compute hash of {} [{}]'.format(path, errno.errorcode[e.args[0]],), log, sys.stderr)
         raise BitrotException
     return path, st.st_size, int(st.st_mtime), int(st.st_atime), new_hash
 
@@ -746,7 +732,7 @@ class Bitrot(object):
         #bitrot_log = os.path.basename(get_path(ext=b'log'))
 
         try:
-            conn = get_sqlite3_cursor(bitrot_db, copy=self.test)
+            conn = get_sqlite3_cursor(bitrot_db, test=self.test)
         except ValueError:
             raise BitrotException(2,'No database exists so cannot test. Run the tool once first.')
             if (log):
@@ -814,7 +800,8 @@ class Bitrot(object):
                 temporary_paths.append(pathIterator)
         for pathIterator in temporary_paths:
             missing_paths.discard(pathIterator)
-            cur.execute('DELETE FROM bitrot WHERE path=?', (pathIterator,))
+            if (self.test == 0):
+                cur.execute('DELETE FROM bitrot WHERE path=?', (pathIterator,))
         del temporary_paths
         gc.collect()
 
@@ -893,7 +880,7 @@ class Bitrot(object):
                     except Exception as ex:
                         warnings.append(f)
                         fixPropertyFailed = True
-                        printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(path,ex),self.log)
+                        printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(path,ex), self.log, sys.stderr)
             elif not (new_mtime_orig):
                 if (self.fix  == 2) or (self.fix  == 6):
                     try:
@@ -901,7 +888,7 @@ class Bitrot(object):
                     except Exception as ex:
                         warnings.append(path)
                         fixPropertyFailed = True
-                        printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(path,ex),self.log)
+                        printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(path,ex), self.log, sys.stderr)
             elif not (new_atime_orig):
                 if (self.fix  == 2) or (self.fix  == 6):
                     try:
@@ -909,7 +896,7 @@ class Bitrot(object):
                     except Exception as ex:
                         warnings.append(f)
                         fixPropertyFailed = True
-                        printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(path,ex),self.log)
+                        printAndOrLog('Can\'t rename: {} due to warning: \'{}\''.format(path,ex), self.log, sys.stderr)
 
             if not new_mtime_orig or not new_atime_orig:
                 if (fixPropertyFailed == False):
@@ -930,7 +917,7 @@ class Bitrot(object):
                 # We are not expecting this path, it wasn't in the database yet.
                 # It's either new, a rename, or recently excluded. Let's handle that 
                 stored_path = self.handle_unknown_path(
-                    cur, path, new_mtime, new_hash, paths, hashes, self.log
+                    cur, path, new_mtime, new_hash, paths, hashes, self.test, self.log
                 )
                 self.maybe_commit(conn)
                 if path == stored_path:
@@ -948,21 +935,19 @@ class Bitrot(object):
             cur.execute('SELECT mtime, hash, timestamp FROM bitrot WHERE path=?',(path,))
             row = cur.fetchone()
             if not row:
-                print(
-                    '\rwarning: path disappeared from the database while running:',
-                    path,
-                    file=sys.stderr,
-                )
+                printAndOrLog('warning: path disappeared from the database while running:', path, self.log, sys.stderr)
                 continue
 
             stored_mtime, stored_hash, stored_ts = row
-            if (int(stored_mtime) != new_mtime) and not (self.test == 2):
-                updated_paths.append(path)
-                cur.execute('UPDATE bitrot SET mtime=?, hash=?, timestamp=? '
-                            'WHERE path=?',
-                            (new_mtime, new_hash, ts(), path))
-                self.maybe_commit(conn)
-                continue
+            if (self.test != 2):
+                if (int(stored_mtime) != new_mtime):
+                    updated_paths.append(path)
+                    if (self.test == 0):
+                        cur.execute('UPDATE bitrot SET mtime=?, hash=?, timestamp=? '
+                                    'WHERE path=?',
+                                    (new_mtime, new_hash, ts(), path))
+                        self.maybe_commit(conn)
+                    continue
 
             if stored_hash != new_hash:
                 errors.append(path)
@@ -994,7 +979,8 @@ class Bitrot(object):
                 sendEmail(MESSAGE=emailToSendString, SUBJECT="FIM Error", log=self.log,verbosity=self.verbosity)
             
         for pathIterator in missing_paths:
-            cur.execute('DELETE FROM bitrot WHERE path=?', (pathIterator,))
+            if (self.test == 0):
+                cur.execute('DELETE FROM bitrot WHERE path=?', (pathIterator,))
 
         conn.commit()
 
@@ -1021,16 +1007,16 @@ class Bitrot(object):
                 self.log
             )
 
-        if not self.test:
+        if (self.test == 0):
             cur.execute('vacuum')
+            update_sha512_integrity(verbosity=self.verbosity, log=self.log)
 
-
-        update_sha512_integrity(verbosity=self.verbosity, log=self.log)
+        if self.test and self.verbosity:
+            printAndOrLog('Database file not updated on disk (test mode).',self.log)
 
         if self.verbosity:
             printAndOrLog("Time elapsed: " + recordTimeElapsed(startTime = self.startTime))
             
-
         if warnings:
             if len(warnings) == 1:
                 printAndOrLog('Warning: There was 1 warning found.',self.log)
@@ -1197,15 +1183,13 @@ class Bitrot(object):
                 for i in range(0, fixedPropertiesCounter):
                     printAndOrLog('  Added missing access or modification timestamp to {}'.format(fixedPropertiesList[i][0]),log)
             
-                        
+        printAndOrLog("\n")
         #if any((new_paths, updated_paths, missing_paths, renamed_paths, excludedList, tooOldList)):
         #    if (self.log):
         #        writeToLog('\n')
 
-        if self.test and self.verbosity:
-            printAndOrLog('Database file not updated on disk (test mode).',log)
 
-    def handle_unknown_path(self, cur, new_path, new_mtime, new_hash, paths, hashes, log):
+    def handle_unknown_path(self, cur, new_path, new_mtime, new_hash, paths, hashes, testing, log):
         """Either add a new entry to the database or update the existing entry
         on rename.
         'cur' is the database cursor. 'new_path' is the new Unicode path.
@@ -1220,10 +1204,8 @@ class Bitrot(object):
             if old_path not in paths:
                 # File of the same hash used to exist but no longer does.
                 # Let's treat 'new_path' as a renamed version of that 'old_path'.
-                cur.execute(
-                    'UPDATE bitrot SET mtime=?, path=?, timestamp=? WHERE path=?',
-                    (new_mtime, new_path, ts(), old_path),
-                )
+                if (testing == 0):
+                    cur.execute('UPDATE bitrot SET mtime=?, path=?, timestamp=? WHERE path=?',(new_mtime, new_path, ts(), old_path),)
                 return old_path
 
         else:
@@ -1231,10 +1213,8 @@ class Bitrot(object):
             # currently stored paths for this hash still point to existing files.
             # Let's insert a new entry for what appears to be a new file.
             try:
-                cur.execute(
-                    'INSERT INTO bitrot VALUES (?, ?, ?, ?)',
-                    (new_path, new_mtime, new_hash, ts()),
-                )
+                if (testing == 0):
+                    cur.execute('INSERT INTO bitrot VALUES (?, ?, ?, ?)',(new_path, new_mtime, new_hash, ts()),)
             except Exception as e:
                 printAndOrLog("Could not save hash: \'{}\'. Received error: {}".format(new_path, e),log)
             return new_path
@@ -1255,8 +1235,11 @@ def stable_sum(bitrot_db=None):
     timing information."""
     if bitrot_db is None:
         bitrot_db = get_path(SOURCE_DIR_PATH,'db')
+        if not os.path.exists(bitrot_db):
+            print("Database does not exist. Cannot calculate sum.")
+            exit()
     digest = hashlib.sha512()
-    conn = get_sqlite3_cursor(bitrot_db)
+    conn = get_sqlite3_cursor(bitrot_db,1)
     cur = conn.cursor()
     cur.execute('SELECT hash FROM bitrot ORDER BY path')
     row = cur.fetchone()
@@ -1344,7 +1327,7 @@ def update_sha512_integrity(verbosity=1, log=True):
     new_sha512 = digest.hexdigest().encode('ascii')
     if new_sha512 != old_sha512:
         if verbosity:
-            printAndOrLog('\nUpdating bitrot.sha512...',log)
+            printAndOrLog('Updating bitrot.sha512...',log)
         
         try:
             with open(sha512_path, 'wb') as f:
@@ -1431,8 +1414,8 @@ def run_from_command_line():
     parser.add_argument(
         '-t', '--test', default=0,
         help='Level 0: normal operations.\n'
-        'Level 1: Just test against an existing database, don\'t update anything.\n.'
-        'Level 2: Doesnt compare dates, only hashes. No timestamps are used in the calculation.\n'
+        'Level 1: Just test against an existing database. Doesn\'t update anything.\n.'
+        'Level 2: Doesnt compare dates, only hashes. No timestamps are used in the calculation. Doesn\'t update anything.\n'
         'You can compare to another directory using --destination.')
     parser.add_argument(
         '-a', '--algorithm', default='SHA512',
@@ -1496,60 +1479,59 @@ def run_from_command_line():
 
 
     args = parser.parse_args()
+    log = args.log
 
-    verbosity = args.verbose
+    if args.sum:
+        try:
+            printAndOrLog("Hash of {} is \n{}".format(SOURCE_DIR_PATH,stable_sum()),log)
+            exit()
+        except RuntimeError as e:
+            printAndOrLog(str(e), log, sys.stderr)
+
     try:
         verbosity = int(args.verbose)
         if (verbosity == 2):
-            printAndOrLog("Verbosity option selected: {}. List missing entries.".format(args.verbose),args.log)
+            printAndOrLog("Verbosity option selected: {}. List missing entries.".format(args.verbose),log)
         elif (verbosity == 3):
-            printAndOrLog("Verbosity option selected: {}. List missing, fixed, new, renamed, and updated entries.".format(args.verbose),args.log)
+            printAndOrLog("Verbosity option selected: {}. List missing, fixed, new, renamed, and updated entries.".format(args.verbose),log)
         elif (verbosity == 4):
-            printAndOrLog("Verbosity option selected: {}. List missing, fixed, new, renamed, updated entries, and excluded files.".format(args.verbose),args.log)
+            printAndOrLog("Verbosity option selected: {}. List missing, fixed, new, renamed, updated entries, and excluded files.".format(args.verbose),log)
         elif (verbosity == 5):
-            printAndOrLog("Verbosity option selected: {}. List missing, fixed, new, renamed, updated entries, excluded files, and existing files.".format(args.verbose),args.log)
+            printAndOrLog("Verbosity option selected: {}. List missing, fixed, new, renamed, updated entries, excluded files, and existing files.".format(args.verbose),log)
         elif not (verbosity == 0) and not (verbosity == 1):
-            printAndOrLog("Invalid test option selected: {}. Using default level 1.".format(args.verbose),args.log)
+            printAndOrLog("Invalid test option selected: {}. Using default level 1.".format(args.verbose),log)
             verbosity = 1
     except Exception as err:
-        printAndOrLog("Invalid test option selected: {}. Using default level 1.".format(args.verbose),args.log)
+        printAndOrLog("Invalid test option selected: {}. Using default level 1.".format(args.verbose),log)
         verbosity = 1
+
 
     try:
         if not args.source:
             SOURCE_DIR = '.'
             if verbosity:
-                printAndOrLog('Using current directory for file list.',args.log)
+                printAndOrLog('Using current directory for file list.',log)
         else:
             os.chdir(args.source)
             SOURCE_DIR_PATH = args.source
             if verbosity:
-                printAndOrLog('Source directory \'{}\'.'.format(args.source),args.log)
+                printAndOrLog('Source directory \'{}\'.'.format(args.source),log)
     except Exception as err:
             SOURCE_DIR = '.'
             if verbosity:
-                printAndOrLog("Invalid source directory: \'{}\'. Using current directory. Received error: {}".format(args.source, err),args.log)
+                printAndOrLog("Invalid source directory: \'{}\'. Using current directory. Received error: {}".format(args.source, err),log)
 
-    log = args.log
     log_path = get_path(SOURCE_DIR_PATH,ext=b'log')
     if (verbosity and log):
         writeToLog('\n=============================\n')
         writeToLog('Log started at ')
         writeToLog(datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
             
-    if args.sum:
-        try:
-            print("Hash of {} is \n{}".format(SOURCE_DIR_PATH,stable_sum()))
-            exit()
-        except RuntimeError as e:
-            print(str(e), file=sys.stderr)
-
-    test = args.test
     try:
         test = int(args.test)
         if (verbosity):
             if (test == 0):
-                printAndOrLog("Testing-only disabled.",log)
+                printAndOrLog("Testing-only mode disabled.",log)
             elif (test == 1):
                 printAndOrLog("Just testing against an existing database, won\'t update anything.",log)
             elif (test == 2):
@@ -1612,7 +1594,6 @@ def run_from_command_line():
     else:
         exclude_list = []
 
-    workers = args.workers
     try:
         workers = int(args.workers)
         if (verbosity):
@@ -1625,7 +1606,6 @@ def run_from_command_line():
         printAndOrLog('{} workers selected. Worker count must be between 1-61. Using the default of 1.'.format(args.workers),log)
         workers = 1
 
-    chunk_size = args.chunk_size
     try:
         chunk_size = int(args.chunk_size)
         if (verbosity):
@@ -1638,7 +1618,6 @@ def run_from_command_line():
         printAndOrLog('Chunk size {} selected. Chunk size must be > 0. Using the default of 1.'.format(args.chunk_size),log)
         workers = 1
 
-    commit_interval = args.commit_interval
     try:
         commit_interval = int(args.commit_interval)
         if (verbosity):
@@ -1651,27 +1630,24 @@ def run_from_command_line():
         printAndOrLog('{} commit interval selected. Commit interval must be > 0. Using the default of {}.'.format(args.commit_interval, DEFAULT_COMMIT_INTERVAL),log)
         commit_interval = DEFAULT_COMMIT_INTERVAL
 
-    if (args.algorithm):
-        #combined = '\t'.join(hashlib.algorithms_available)
-        #if (args.algorithm in combined):
+    #combined = '\t'.join(hashlib.algorithms_available)
+    #if (args.algorithm in combined):
 
-        #word_to_check = args.algorithm
-        #wordlist = hashlib.algorithms_available
-        #result = any(word_to_check in word for word in wordlist)
+    #word_to_check = args.algorithm
+    #wordlist = hashlib.algorithms_available
+    #result = any(word_to_check in word for word in wordlist)
 
-        #algorithms_available = hashlib.algorithms_available
-        #search = args.algorithm
-        #result = next((True for algorithms_available in algorithms_available if search in algorithms_available), False)
-        if (isValidHashingFunction(stringToValidate=args.algorithm) == True):
-            algorithm = args.algorithm.upper()
-            if (verbosity):
-                printAndOrLog('Using {} for hashing functions.'.format(algorithm),log)
-        else:
-            if (verbosity):
-                printAndOrLog("Invalid hashing function specified: {}. Using default {}.".format(args.algorithm,DEFAULT_HASH_FUNCTION),log)
-                algorithm = DEFAULT_HASH_FUNCTION
+    #algorithms_available = hashlib.algorithms_available
+    #search = args.algorithm
+    #result = next((True for algorithms_available in algorithms_available if search in algorithms_available), False)
+    if (isValidHashingFunction(stringToValidate=args.algorithm) == True):
+        algorithm = args.algorithm.upper()
+        if (verbosity):
+            printAndOrLog('Using {} for hashing functions.'.format(algorithm),log)
     else:
-        algorithm = DEFAULT_HASH_FUNCTION
+        if (verbosity):
+            printAndOrLog("Invalid hashing function specified: {}. Using default {}.".format(args.algorithm,DEFAULT_HASH_FUNCTION),log)
+            algorithm = DEFAULT_HASH_FUNCTION
 
     sfv_path = get_path(SOURCE_DIR_PATH,ext=b'sfv')
     md5_path = get_path(SOURCE_DIR_PATH,ext=b'md5')
@@ -1696,7 +1672,6 @@ def run_from_command_line():
     else:
         sfv = ""
 
-    recent = args.recent 
     try:
         recent = int(args.recent)
         if (recent):
@@ -1752,39 +1727,36 @@ def run_from_command_line():
     #     printAndOrLog("Only allowing one similarly named normalized file into the database.",log)
     #     normalize=True
 
-    fix = args.fix
-    if (args.fix):
-        try:
-            fix = int(args.fix)
-            if (fix == 0):
-                if (verbosity):
-                    printAndOrLog("Will not check problem files.",log)
-            elif (fix == 1):
-                if (verbosity):
-                    printAndOrLog("Will report files that have missing access and modification timestamps.",log)
-            elif (fix == 2):
-                if (verbosity):
-                    printAndOrLog("Fixes files that have missing access and modification timestamps.",log)
-            elif (fix == 3):
-                if (verbosity):
-                    printAndOrLog("Will report files that have invalid characters",log)
-            elif (fix == 4):
-                if (verbosity):
-                    printAndOrLog("Fixes files by removing invalid characters. NOT RECOMMENDED.",log)
-            elif (fix == 5):
-                if (verbosity):
-                    printAndOrLog("Will report files that have missing access and modification timestamps and invalid characters.",log)
-            elif (fix == 6):
-                if (verbosity):
-                    printAndOrLog("Fixes files by removing invalid characters and adding missing access and modification times. NOT RECOMMENDED.",log)
-            else:
-                if (verbosity):
-                    printAndOrLog("Invalid test option selected: {}. Using default level; will report files that have missing access and modification timestamps and invalid characters.".format(args.fix),log)
-                    fix = 5
-        except Exception as err:
-            printAndOrLog("Invalid test option selected: {}. Using default level; will report files that have missing access and modification timestamps and invalid characters.".format(args.fix),log)
-            fix = 5
-
+    try:
+        fix = int(args.fix)
+        if (fix == 0):
+            if (verbosity):
+                printAndOrLog("Will not check problem files.",log)
+        elif (fix == 1):
+            if (verbosity):
+                printAndOrLog("Will report files that have missing access and modification timestamps.",log)
+        elif (fix == 2):
+            if (verbosity):
+                printAndOrLog("Fixes files that have missing access and modification timestamps.",log)
+        elif (fix == 3):
+            if (verbosity):
+                printAndOrLog("Will report files that have invalid characters",log)
+        elif (fix == 4):
+            if (verbosity):
+                printAndOrLog("Fixes files by removing invalid characters. NOT RECOMMENDED.",log)
+        elif (fix == 5):
+            if (verbosity):
+                printAndOrLog("Will report files that have missing access and modification timestamps and invalid characters.",log)
+        elif (fix == 6):
+            if (verbosity):
+                printAndOrLog("Fixes files by removing invalid characters and adding missing access and modification times. NOT RECOMMENDED.",log)
+        else:
+            if (verbosity):
+                printAndOrLog("Invalid test option selected: {}. Using default level; will report files that have missing access and modification timestamps and invalid characters.".format(args.fix),log)
+                fix = 5
+    except Exception as err:
+        printAndOrLog("Invalid test option selected: {}. Using default level; will report files that have missing access and modification timestamps and invalid characters.".format(args.fix),log)
+        fix = 5
 
     bt = Bitrot(
         verbosity = verbosity,
