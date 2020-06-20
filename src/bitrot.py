@@ -554,11 +554,6 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                                 for file in pathIterator.split(os.path.sep)
                                 for wildcard in included]
                 
-                # print(path)
-                # print(path_encoded)
-                # print(excluded)
-                #print(exclude_this)
-                
                 if (not stat.S_ISREG(st.st_mode) and not os.path.islink(path)) or any(exclude_this) or any([fnmatch(path_encoded, exc) for exc in excluded]) or (included and not any([fnmatch(path_encoded, inc) for inc in included]) and not any(include_this)):
                 #if not stat.S_ISREG(st.st_mode) or any([fnmatch(path, exc) for exc in excluded]):
                     excludedList.append(path)
@@ -736,8 +731,6 @@ class Bitrot(object):
         bitrot_db = get_relative_path(get_absolute_path(SOURCE_DIR_PATH,b'db'))
         bitrot_sfv = get_relative_path(get_absolute_path(SOURCE_DIR_PATH,ext=b'sfv'))
         bitrot_md5 = get_relative_path(get_absolute_path(SOURCE_DIR_PATH,ext=b'md5'))
-
-
 
         #bitrot_db = os.path.basename(get_absolute_path())
         #bitrot_sha512 = os.path.basename(get_absolute_path(ext=b'sha512'))
@@ -1507,7 +1500,7 @@ def run_from_command_line():
         '-d', '--destination', default='',
         help="Root of destination folder. Default is current directory.")
 
-    queuedMessages=[]
+    queuedMessages = []
     args = parser.parse_args()
     log = args.log
 
@@ -1533,16 +1526,16 @@ def run_from_command_line():
         if not args.source:
             SOURCE_DIR = '.'
             if verbosity:
-                queuedMessages.append("Using current directory for file list.")
+                printAndOrLog('Using current directory for file list.',args.log)
         else:
             os.chdir(args.source)
             SOURCE_DIR_PATH = args.source
             if verbosity:
-                queuedMessages.append("Source directory \''" + args.source + "\'")
+                printAndOrLog('Source directory \'{}\'.'.format(args.source),args.log)
     except Exception as err:
             SOURCE_DIR = '.'
             if verbosity:
-                queuedMessages.append("Invalid source directory: \''" + args.source + "\'. Using current directory. Received error: " + err)
+                printAndOrLog("Invalid source directory: \'{}\'. Using current directory. Received error: {}".format(args.source, err),args.log)
 
     log_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'log')
     
@@ -1595,8 +1588,6 @@ def run_from_command_line():
     for message in queuedMessages:
         printAndOrLog(message,log)
     del queuedMessages
-    gc.collect()
-
 
     include_list = []
     if args.include_list:
