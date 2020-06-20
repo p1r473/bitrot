@@ -303,7 +303,6 @@ def isValidHashingFunction(stringToValidate=""):
 #    else:
 #        return False
 
-
 def calculateUnits(total_size = 0):
         units = ["B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB"]
         size = 0
@@ -345,7 +344,6 @@ def calculateUnits(total_size = 0):
         return sizeUnits, total_size
 
 
-
 def cleanString(stringToClean=""):
     #stringToClean=re.sub(r'[\\/*?:"<>|]',"",stringToClean)
     stringToClean = ''.join([x for x in stringToClean if ord(x) < 128])
@@ -377,7 +375,6 @@ def progressFormat(current_path):
 def ts():
     return datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S%z')
 
-
 def get_sqlite3_cursor(path, test=0, copy=False):
     if (copy) and (not test):
         if not os.path.exists(path):
@@ -399,7 +396,6 @@ def get_sqlite3_cursor(path, test=0, copy=False):
             printAndOrLog("Could not open database file: \'{}\'. Received error: {}".format(bitrot_db, e),log)
             raise Exception("Could not open database file: \'{}\'. Received error: {}".format(bitrot_db, e))
 
-
         path = db_copy.name
         atexit.register(os.unlink, path)
     try:
@@ -418,7 +414,6 @@ def get_sqlite3_cursor(path, test=0, copy=False):
             cur.execute('CREATE INDEX bitrot_hash_idx ON bitrot (hash)')
     atexit.register(conn.commit)
     return conn
-
 
 def fix_existing_paths(directory=SOURCE_DIR, verbosity = 1, log=True, test = 0, fix=5, warnings = (), fixedRenameList = (), fixedRenameCounter = 0):
 #   Use os.getcwd() instead of "." since it doesn't seem to be resolved the way you want. This will be illustrated in the diagnostics function.
@@ -690,7 +685,6 @@ class CustomETA(progressbar.widgets.ETA):
         else:
             return formatted
 
-
 class BitrotException(Exception):
     pass
 
@@ -711,7 +705,7 @@ class Bitrot(object):
         self._last_commit_ts = 0
         #ProcessPoolExecutor runs each of your workers in its own separate child process. (CPU Bound)
         #ThreadPoolExecutor runs each of your workers in separate threads within the main process. (IO Bound)
-        self.pool = ProcessPoolExecutor(max_workers=workers)
+        self.pool = ThreadPoolExecutor(max_workers=workers)
         self.email = email
         self.log = log
         self.hidden = hidden
@@ -766,11 +760,12 @@ class Bitrot(object):
         current_size = 0
         global HASHPROGRESSCOUNTER
         global LENPATHS
+
+        print(self.pool)
         
 
         missing_paths = self.select_all_paths(cur)
         hashes = self.select_all_hashes(cur)
-
 
         if (SOURCE_DIR != DESTINATION_DIR):
             os.chdir(DESTINATION_DIR)
@@ -817,7 +812,6 @@ class Bitrot(object):
             if (self.test == 0):
                 cur.execute('DELETE FROM bitrot WHERE path=?', (pathIterator,))
         del temporary_paths
-        gc.collect()
 
         if self.verbosity:
             print("Hashing all files... Please wait...")
@@ -979,7 +973,6 @@ class Bitrot(object):
                         #p, stored_hash, new_hash, stored_ts
                         self.algorithm,path, stored_hash, new_hash, stored_ts),self.log)   
                 FIMErrorCounter += 1 
-
 
         if self.verbosity:    
             format_custom_text.update_mapping(f="")
@@ -1203,7 +1196,6 @@ class Bitrot(object):
         #    if (self.log):
         #        writeToLog('\n')
 
-
     def handle_unknown_path(self, cur, new_path, new_mtime, new_hash, paths, hashes, test, log):
         """Either add a new entry to the database or update the existing entry
         on rename.
@@ -1234,9 +1226,6 @@ class Bitrot(object):
                 printAndOrLog("Could not save hash: \'{}\'. Received error: {}".format(new_path, e),log)
             return new_path
 
-
-
-
 def get_absolute_path(directory=b'.', ext=b'db'):
     """Compose the path to the selected bitrot file."""
     directory = os.fsencode(directory)
@@ -1251,8 +1240,6 @@ def get_relative_path(directory=b'.'):
     relative_path = bytes(relative_path, FSENCODING)
 
     return relative_path
-
-
 
 def stable_sum(bitrot_db=None):
     """Calculates a stable SHA512 of all entries in the database.
@@ -1278,6 +1265,8 @@ def stable_sum(bitrot_db=None):
 def check_sha512_integrity(verbosity=1, log=True):
     sha512_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'sha512')
     sha512_path = sha512_path.decode(FSENCODING)
+    bitrot_db = get_absolute_path(SOURCE_DIR_PATH,'db')
+    bitrot_db = bitrot_db.decode(FSENCODING)
 
     if verbosity:
         printAndOrLog('Checking bitrot.db integrity...\n',log)
@@ -1295,8 +1284,6 @@ def check_sha512_integrity(verbosity=1, log=True):
     if not os.path.exists(sha512_path):
         return
 
-    bitrot_db = get_absolute_path(SOURCE_DIR_PATH,'db')
-    bitrot_db = bitrot_db.decode(FSENCODING)
     digest = hashlib.sha512()
 
     try:
@@ -1328,11 +1315,12 @@ def check_sha512_integrity(verbosity=1, log=True):
 
         raise BitrotException(3, 'bitrot.db integrity check failed, cannot continue.',)
 
-
 def update_sha512_integrity(verbosity=1, log=True):
     old_sha512 = 0
     sha512_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'sha512')
     sha512_path = sha512_path.decode(FSENCODING)
+    bitrot_db = get_absolute_path(SOURCE_DIR_PATH,'db')
+    bitrot_db = bitrot_db.decode(FSENCODING)
 
     if os.path.exists(sha512_path):
         try:
@@ -1345,7 +1333,6 @@ def update_sha512_integrity(verbosity=1, log=True):
             printAndOrLog("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e),log)
             raise Exception("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e))    
 
-    bitrot_db = get_absolute_path(SOURCE_DIR_PATH,'db')
     digest = hashlib.sha512()
     if os.path.exists(bitrot_db):
         try:
@@ -1354,6 +1341,8 @@ def update_sha512_integrity(verbosity=1, log=True):
                 f.close()
         except Exception as err:
             printAndOrLog("Could not open database file: \'{}\'. Received error: {}".format(bitrot_db, err),log)
+    else:
+        print("SHIT DUNT EXIST YALL")
     new_sha512 = digest.hexdigest().encode('ascii')
     if new_sha512 != old_sha512:
         if verbosity:
@@ -1530,7 +1519,6 @@ def run_from_command_line():
     except Exception as err:
         printAndOrLog("Invalid verbosity option selected: {}. Using default level 1.".format(args.verbose),log)
         verbosity = 1
-
 
     try:
         if not args.source:
