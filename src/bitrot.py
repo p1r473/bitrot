@@ -716,7 +716,7 @@ class Bitrot(object):
         #ProcessPoolExecutor runs each of your workers in its own separate child process. (CPU Bound)
         #ThreadPoolExecutor runs each of your workers in separate threads within the main process. (IO Bound)
         self.workers = workers
-        if (workers > 1):
+        if (workers != 1):
             self.pool = ThreadPoolExecutor(max_workers=workers)
         self.email = email
         self.log = log
@@ -828,12 +828,7 @@ class Bitrot(object):
 
         if self.verbosity:
             print("Hashing all files... Please wait...")
-            format_custom_text = progressbar.FormatCustomText(
-                '%(f)s',
-                dict(
-                    f='',
-                )
-            )
+            format_custom_text = progressbar.FormatCustomText('%(f)s',dict(f='',))
             bar = progressbar.ProgressBar(max_value=len(paths),widgets=[format_custom_text,
                 CustomETA(format_not_started='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s|ETA:%(eta)8s', format_finished='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s|ETA:%(eta)8s', format_zero='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format_NA='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s'),
                 progressbar.Bar(marker='#', left='|', right='|', fill=' ', fill_left=True),               
@@ -841,9 +836,6 @@ class Bitrot(object):
             if (len(paths) > 0):
                 format_custom_text.update_mapping(f=progressFormat(paths[HASHPROGRESSCOUNTER]))
                 bar.update(HASHPROGRESSCOUNTER)
-
-        #for pathIterator in sorted(paths):
-        #    path = pathIterator #.decode(FSENCODING)
 
         if (self.workers == 1):
             pointer = paths
