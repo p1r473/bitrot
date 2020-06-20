@@ -26,6 +26,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+from goto import with_goto
 import argparse
 import atexit
 import datetime
@@ -52,10 +53,10 @@ import unicodedata
 import gc
 
 ################### USER CONFIG ###################
-DEFAULT_COMMIT_INTERVAL = 300
-DEFAULT_CHUNK_SIZE = 1048576 # used to be 16384 - block size in HFS+; 4X the block size in ext4
-DEFAULT_HASH_FUNCTION = "SHA512"
 SERVER = smtplib.SMTP('smtp.emailprovider.com', 587)
+DEFAULT_HASH_FUNCTION = "SHA512"
+DEFAULT_CHUNK_SIZE = 1048576 # used to be 16384 - block size in HFS+; 4X the block size in ext4
+DEFAULT_COMMIT_INTERVAL = 300
 ###################################################
 
 DOT_THRESHOLD = 2
@@ -274,7 +275,7 @@ def hash(path, chunk_size,algorithm="",log=True,sfv=""):
                         f2.close()
             except Exception as err:
                 printAndOrLog("Could not open SFV file: \'{}\'. Received error: {}".format(path, err),log)
-            writeToSFV(stringToWrite="{} {}\n".format(path, "%08X" % crcvalue),sfv=sfv,log=log) 
+            writeToSFV(stringToWrite="{} {}\n".format(path, "%08X" % crcvalue),sfv=sfv,log=log)
     return digest.hexdigest()
 
 def is_int(val):
@@ -385,6 +386,9 @@ def get_sqlite3_cursor(path, test=0, copy=False):
         try:
             if os.path.exists(path):
                 with open(path, 'rb') as db_orig:
+                    print(path)
+                    print(db_orig)
+                    exit()
                     try:
                         shutil.copyfileobj(db_orig, db_copy)
                     finally:
@@ -393,8 +397,8 @@ def get_sqlite3_cursor(path, test=0, copy=False):
         # except IOError as e:
         #     if e.errno == errno.EACCES:
         except Exception as e:
-            printAndOrLog("Could not open database file: \'{}\'. Received error: {}".format(bitrot_db, e),log)
-            raise Exception("Could not open database file: \'{}\'. Received error: {}".format(bitrot_db, e))
+            printAndOrLog("Could not open database file: \'{}\'. Received error: {}".format(path, e),log)
+            raise Exception("Could not open database file: \'{}\'. Received error: {}".format(path, e))
 
         path = db_copy.name
         atexit.register(os.unlink, path)
@@ -627,8 +631,13 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
         bar.finish()
         print()
     return paths, total_size, excludedList
-def compute_one(path, chunk_size, algorithm="", follow_links=False, log=True,sfv=""):
+def compute_one(path, bar, format_custom_text, chunk_size, algorithm="", follow_links=False, verbosity = 1, log=True, sfv=""):
     """Return a tuple with (unicode path, size, mtime, sha1). Takes a binary path."""
+    global HASHPROGRESSCOUNTER
+    if (verbosity):
+        format_custom_text.update_mapping(f=progressFormat(path))
+        bar.update(HASHPROGRESSCOUNTER)
+        HASHPROGRESSCOUNTER+=1
 
     try:
         if os.path.islink(path):
@@ -705,7 +714,9 @@ class Bitrot(object):
         self._last_commit_ts = 0
         #ProcessPoolExecutor runs each of your workers in its own separate child process. (CPU Bound)
         #ThreadPoolExecutor runs each of your workers in separate threads within the main process. (IO Bound)
-        self.pool = ThreadPoolExecutor(max_workers=workers)
+        self.workers = workers
+        if (workers > 1):
+            self.pool = ThreadPoolExecutor(max_workers=workers)
         self.email = email
         self.log = log
         self.hidden = hidden
@@ -744,6 +755,7 @@ class Bitrot(object):
                 printAndOrLog("No database exists so cannot test. Run the tool once first.",self.log)
 
         cur = conn.cursor()
+        futures = []
         new_paths = []
         existing_paths = []
         updated_paths = []
@@ -761,8 +773,8 @@ class Bitrot(object):
         global HASHPROGRESSCOUNTER
         global LENPATHS
 
-        print(self.pool)
-        
+        if (self.workers > 1): #JCPC
+            print(self.pool)
 
         missing_paths = self.select_all_paths(cur)
         hashes = self.select_all_hashes(cur)
@@ -827,20 +839,45 @@ class Bitrot(object):
                 ])
             if (len(paths) > 0):
                 format_custom_text.update_mapping(f=progressFormat(paths[HASHPROGRESSCOUNTER]))
-                bar.update(HASHPROGRESSCOUNTER+1)
+                bar.update(HASHPROGRESSCOUNTER)
 
         #for pathIterator in sorted(paths):
         #    path = pathIterator #.decode(FSENCODING)
-        futures = [self.pool.submit(compute_one, pathIterator, self.chunk_size, self.algorithm, self.follow_links, self.log, self.sfv) for pathIterator in paths]
 
-        for future in as_completed(futures):
-            try:
-                path, new_size, new_mtime, new_atime, new_hash = future.result()
-            except BitrotException:
-                continue
+        if (self.workers == 1):
+            pointer = paths
+        else:
+            futures = [self.pool.submit(compute_one, pathIterator, bar, format_custom_text, self.chunk_size, self.algorithm, self.follow_links, self.verbosity, self.log, self.sfv) for pathIterator in paths]
+            pointer = as_completed(futures)
 
-            #new_mtime = int(st.st_mtime)
-            #new_atime = int(st.st_atime)
+        for future in pointer:
+            if (self.workers == 1):
+                path = future
+                try:
+                    st = os.stat(path)
+                except OSError as ex:
+                    if ex.errno in IGNORED_FILE_SYSTEM_ERRORS:
+                        # The file disappeared between listing existing paths and
+                        # this run or is (temporarily?) locked with different
+                        # permissions. We'll just skip it for now.
+                        printAndOrLog('warning: `{}` is currently unavailable for reading: {}'.format(path, ex), log, sys.stderr)
+                        continue
+                    raise
+            else:
+                try:
+                    path, new_size, new_mtime, new_atime, new_hash = future.result()
+                except BitrotException:
+                    continue
+
+            if (self.workers == 1):
+                if self.verbosity:
+                    if (HASHPROGRESSCOUNTER < len(paths)):
+                        format_custom_text.update_mapping(f=progressFormat(paths[HASHPROGRESSCOUNTER]))
+                    bar.update(HASHPROGRESSCOUNTER)
+                    HASHPROGRESSCOUNTER+=1
+                new_mtime = int(st.st_mtime)
+                new_atime = int(st.st_atime)
+                new_size = st.st_size
             new_mtime_orig = new_mtime
             new_atime_orig = new_atime
             a = datetime.datetime.now()
@@ -879,7 +916,6 @@ class Bitrot(object):
                     missing_paths.discard(path)
                     total_size -= new_size
                     continue
-
             fixPropertyFailed = False
             if (not self.test):
                 if not new_mtime_orig and not new_atime_orig:
@@ -916,12 +952,15 @@ class Bitrot(object):
                             fixedPropertiesCounter += 1
 
             current_size += new_size
-            if self.verbosity:
-                HASHPROGRESSCOUNTER+=1
-                if (HASHPROGRESSCOUNTER < len(paths)):
-                    format_custom_text.update_mapping(f=progressFormat(paths[HASHPROGRESSCOUNTER]))
-                    bar.update(HASHPROGRESSCOUNTER)
-          
+
+            if (self.workers == 1):
+                try:
+                    new_hash = hash(path, self.chunk_size, self.algorithm, self.log, self.sfv)
+                except (IOError, OSError) as e:
+                    printAndOrLog('warning: cannot compute hash of {} [{}]'.format(path, errno.errorcode[e.args[0]],), log, sys.stderr)
+                    missing_paths.discard(path)
+                    continue
+            
             if path not in missing_paths:
                 # We are not expecting this path, it wasn't in the database yet.
                 # It's either new, a rename, or recently excluded. Let's handle that 
