@@ -635,7 +635,7 @@ def compute_one(path, bar, format_custom_text, chunk_size, algorithm="", follow_
     """Return a tuple with (unicode path, size, mtime, sha1). Takes a binary path."""
     global HASHPROGRESSCOUNTER
     if (verbosity):
-        format_custom_text.update_mapping(f=progressFormat(path))
+        # format_custom_text.update_mapping(f=progressFormat(path))
         bar.update(HASHPROGRESSCOUNTER)
         HASHPROGRESSCOUNTER+=1
 
@@ -861,9 +861,6 @@ class Bitrot(object):
 
             if (self.workers == 1):
                 if self.verbosity:
-                    if (HASHPROGRESSCOUNTER < len(pointer)):
-                        format_custom_text.update_mapping(f=progressFormat(pointer[HASHPROGRESSCOUNTER]))
-                    bar.update(HASHPROGRESSCOUNTER)
                     HASHPROGRESSCOUNTER+=1
                 new_mtime = int(st.st_mtime)
                 new_atime = int(st.st_atime)
