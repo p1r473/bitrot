@@ -57,8 +57,7 @@ import gc
 SERVER = smtplib.SMTP('smtp.emailprovider.com', 587)
 DEFAULT_HASH_FUNCTION = "SHA512"
 DEFAULT_CHUNK_SIZE = 1048576 # used to be 16384 - block size in HFS+; 4X the block size in ext4
-DEFAULT_COMMIT_INTERVAL = 300
-###################################################
+DEFAULT_COMMIT_INTERVAL = 300###############
 
 DOT_THRESHOLD = 2
 VERSION = (1, 0, 1)
@@ -1366,6 +1365,10 @@ def update_sha512_integrity(verbosity=1, log=True):
                 f.close()
         except Exception as err:
             printAndOrLog("Could not open database file: \'{}\'. Received error: {}".format(bitrot_db, err),log)
+            raise Exception("Could not open database file: \'{}\'. Received error: {}".format(bitrot_db, err),log)
+    else:
+        printAndOrLog("Could not open database file: \'{}\'. It does not exist.".format(bitrot_db),log)
+        raise Exception("Could not open database file: \'{}\'. It does not exist.".format(bitrot_db),log) 
 
     new_sha512 = digest.hexdigest().encode('ascii')
     if new_sha512 != old_sha512:
