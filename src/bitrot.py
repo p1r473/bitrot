@@ -57,7 +57,8 @@ import gc
 SERVER = smtplib.SMTP('smtp.emailprovider.com', 587)
 DEFAULT_HASH_FUNCTION = "SHA512"
 DEFAULT_CHUNK_SIZE = 1048576 # used to be 16384 - block size in HFS+; 4X the block size in ext4
-DEFAULT_COMMIT_INTERVAL = 300###############
+DEFAULT_COMMIT_INTERVAL = 300
+###############
 
 DOT_THRESHOLD = 2
 VERSION = (1, 0, 1)
@@ -837,6 +838,7 @@ class Bitrot(object):
         else:
             futures = [self.pool.submit(compute_one, pathIterator, bar, format_custom_text, self.chunk_size, self.algorithm, self.follow_links, self.verbosity, self.log, self.sfv) for pathIterator in paths]
             pointer = as_completed(futures)
+            del futures
 
         for future in pointer:
             if (self.workers == 1):
@@ -1130,7 +1132,7 @@ class Bitrot(object):
                 if (len(existing_paths) == 1):
                     printAndOrLog('1 existing entry:',log)
                 else:
-                    printAndOrLog('{} existing entries:'.format(len(paths)),log)
+                    printAndOrLog('{} existing entries:'.format(LENPATHS),log)
                 existing_paths.sort()
                 for pathIterator in existing_paths:
                     printAndOrLog('{}'.format(pathIterator),log)
@@ -1383,7 +1385,7 @@ def update_sha512_integrity(verbosity=1, log=True):
         #     if e.errno == errno.EACCES:
         except Exception as e:
             printAndOrLog("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e),log)
-            raise Exception("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e))    
+            raise Exception("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e))   
 
 def recordTimeElapsed(startTime=0):
     elapsedTime = (time.time() - startTime)  
