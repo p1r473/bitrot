@@ -772,9 +772,6 @@ class Bitrot(object):
         global HASHPROGRESSCOUNTER
         global LENPATHS
 
-        if (self.workers > 1): #JCPC
-            print(self.pool)
-
         missing_paths = self.select_all_paths(cur)
         hashes = self.select_all_hashes(cur)
 
