@@ -58,7 +58,7 @@ SERVER = smtplib.SMTP('smtp.emailprovider.com', 587)
 DEFAULT_HASH_FUNCTION = "SHA512"
 DEFAULT_CHUNK_SIZE = 1048576 # used to be 16384 - block size in HFS+; 4X the block size in ext4
 DEFAULT_COMMIT_INTERVAL = 300
-###############
+###################################################
 
 DOT_THRESHOLD = 2
 VERSION = (1, 0, 1)
@@ -74,9 +74,7 @@ if sys.version[0] == '2':
     str = type(u'text')
     # use \'bytes\' for bytestrings
 
-def sendEmail(MESSAGE="", SUBJECT="", log=True, verbosity=1):
-    global SERVER
-    
+def sendEmail(MESSAGE="", SUBJECT="", log=True, verbosity=1):   
     SERVER.ehlo()
     SERVER.starttls()
 
@@ -668,7 +666,6 @@ class CustomETA(progressbar.widgets.ETA):
 
     def __call__(self, progress, data):
         # Run 'ETA.__call__' to update 'data'. This adds the 'eta_seconds'
-        global progresscounter
         data_plus_one = data.copy()
         if (HASHPROGRESSCOUNTER < LENPATHS):
             data_plus_one['value'] += 1
