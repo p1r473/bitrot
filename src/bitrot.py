@@ -94,7 +94,7 @@ def normalize_path(path):
     else:
         return path
 
-def printAndOrLog(stringToProcess,log=True, stream=sys.stdout):
+def printAndOrLog(stringToProcess, log=True, stream=sys.stdout):
     print(stringToProcess,file=stream)
     if (log):
         writeToLog('\n')
@@ -377,8 +377,9 @@ def progressFormat(current_path):
 def ts():
     return datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S%z')
 
-def get_sqlite3_cursor(path, test=0, copy=False):
-    if (copy) and (not test):
+
+def get_sqlite3_cursor(path, copy=False):
+    if (copy):
         if not os.path.exists(path):
             raise ValueError("Error: bitrot database at {} does not exist.".format(path))
             printAndOrLog("Error: bitrot database at {} does not exist.".format(path),log)
@@ -387,9 +388,6 @@ def get_sqlite3_cursor(path, test=0, copy=False):
         try:
             if os.path.exists(path):
                 with open(path, 'rb') as db_orig:
-                    print(path)
-                    print(db_orig)
-                    exit()
                     try:
                         shutil.copyfileobj(db_orig, db_copy)
                     finally:
@@ -411,12 +409,12 @@ def get_sqlite3_cursor(path, test=0, copy=False):
     atexit.register(conn.close)
     cur = conn.cursor()
     tables = set(t for t, in cur.execute('SELECT name FROM sqlite_master'))
-    if (test == 0):
-        if 'bitrot' not in tables:
-            cur.execute('CREATE TABLE bitrot (path TEXT PRIMARY KEY, '
-                        'mtime INTEGER, hash TEXT, timestamp TEXT)')
-        if 'bitrot_hash_idx' not in tables:
-            cur.execute('CREATE INDEX bitrot_hash_idx ON bitrot (hash)')
+
+    if 'bitrot' not in tables:
+        cur.execute('CREATE TABLE bitrot (path TEXT PRIMARY KEY, '
+                    'mtime INTEGER, hash TEXT, timestamp TEXT)')
+    if 'bitrot_hash_idx' not in tables:
+        cur.execute('CREATE INDEX bitrot_hash_idx ON bitrot (hash)')
     atexit.register(conn.commit)
     return conn
 
@@ -749,7 +747,7 @@ class Bitrot(object):
         #bitrot_log = os.path.basename(get_absolute_path(ext=b'log'))
 
         try:
-            conn = get_sqlite3_cursor(bitrot_db, test=self.test)
+            conn = get_sqlite3_cursor(bitrot_db, copy=self.test)
         except ValueError:
             raise BitrotException(2,'No database exists so cannot test. Run the tool once first.')
             if (log):
@@ -839,6 +837,7 @@ class Bitrot(object):
 
         if (self.workers == 1):
             pointer = paths
+            del paths
         else:
             futures = [self.pool.submit(compute_one, pathIterator, bar, format_custom_text, self.chunk_size, self.algorithm, self.follow_links, self.verbosity, self.log, self.sfv) for pathIterator in paths]
             pointer = as_completed(futures)
@@ -864,8 +863,8 @@ class Bitrot(object):
 
             if (self.workers == 1):
                 if self.verbosity:
-                    if (HASHPROGRESSCOUNTER < len(paths)):
-                        format_custom_text.update_mapping(f=progressFormat(paths[HASHPROGRESSCOUNTER]))
+                    if (HASHPROGRESSCOUNTER < len(pointer)):
+                        format_custom_text.update_mapping(f=progressFormat(pointer[HASHPROGRESSCOUNTER]))
                     bar.update(HASHPROGRESSCOUNTER)
                     HASHPROGRESSCOUNTER+=1
                 new_mtime = int(st.st_mtime)
@@ -957,9 +956,10 @@ class Bitrot(object):
             if path not in missing_paths:
                 # We are not expecting this path, it wasn't in the database yet.
                 # It's either new, a rename, or recently excluded. Let's handle that 
-                stored_path = self.handle_unknown_path(
-                    cur, path, new_mtime, new_hash, paths, hashes, self.test, self.log
-                )
+                if (self.workers == 1):
+                    stored_path = self.handle_unknown_path(cur, path, new_mtime, new_hash, pointer, hashes, self.test, self.log)
+                else:
+                    stored_path = self.handle_unknown_path(cur, path, new_mtime, new_hash, paths, hashes, self.test, self.log)
                 self.maybe_commit(conn)
                 if path == stored_path:
                     new_paths.append(path)
@@ -1032,7 +1032,6 @@ class Bitrot(object):
                 all_count,
                 len(errors),
                 len(warnings),
-                paths,
                 existing_paths,
                 new_paths,
                 updated_paths,
@@ -1095,7 +1094,7 @@ class Bitrot(object):
         return result
 
     def report_done(
-        self, total_size, all_count, error_count, warning_count, paths, existing_paths, new_paths, updated_paths,
+        self, total_size, all_count, error_count, warning_count, existing_paths, new_paths, updated_paths,
         renamed_paths, missing_paths, tooOldList, excludedList, fixedRenameList, fixedRenameCounter,
         fixedPropertiesList, fixedPropertiesCounter, log):
         """Print a report on what happened.  All paths should be Unicode here."""
@@ -1224,9 +1223,7 @@ class Bitrot(object):
                     printAndOrLog('  Added missing access or modification timestamp to {}'.format(fixedPropertiesList[i][0]),log)
             
         printAndOrLog("\n")
-        #if any((new_paths, updated_paths, missing_paths, renamed_paths, excludedList, tooOldList)):
-        #    if (self.log):
-        #        writeToLog('\n')
+
 
     def handle_unknown_path(self, cur, new_path, new_mtime, new_hash, paths, hashes, test, log):
         """Either add a new entry to the database or update the existing entry
@@ -1246,7 +1243,6 @@ class Bitrot(object):
                 if (test == 0):
                     cur.execute('UPDATE bitrot SET mtime=?, path=?, timestamp=? WHERE path=?',(new_mtime, new_path, ts(), old_path),)
                 return old_path
-
         else:
             # Either we haven't found 'new_sha1' at all in the database, or all
             # currently stored paths for this hash still point to existing files.
@@ -1285,7 +1281,7 @@ def stable_sum(bitrot_db=None):
             print("Database {} does not exist. Cannot calculate sum.".format(bitrot_db))
             exit()
     digest = hashlib.sha512()
-    conn = get_sqlite3_cursor(bitrot_db,1)
+    conn = get_sqlite3_cursor(bitrot_db)
     cur = conn.cursor()
     cur.execute('SELECT hash FROM bitrot ORDER BY path')
     row = cur.fetchone()
@@ -1373,8 +1369,7 @@ def update_sha512_integrity(verbosity=1, log=True):
                 f.close()
         except Exception as err:
             printAndOrLog("Could not open database file: \'{}\'. Received error: {}".format(bitrot_db, err),log)
-    else:
-        print("SHIT DUNT EXIST YALL")
+
     new_sha512 = digest.hexdigest().encode('ascii')
     if new_sha512 != old_sha512:
         if verbosity:
@@ -1594,9 +1589,9 @@ def run_from_command_line():
             if (test == 0):
                 queuedMessages.append("Testing-only mode disabled.")
             elif (test == 1):
-                queuedMessages.append("Just testing against an existing database, won\'t update anything.")
+                queuedMessages.append("Just testing against an existing database. Won\'t update anything.")
             elif (test == 2):
-                queuedMessages.append("Won\'t compare dates, only hashes")
+                queuedMessages.append("Won\'t compare dates, only hashes. Won\'t update anything.")
             else:
                 queuedMessages.append("Invalid test option selected: " + args.test +". Using default level 0: testing-only disabled.")
                 test = 0
