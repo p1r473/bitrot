@@ -139,7 +139,7 @@ def str2bool(v):
 def has_hidden_attribute(filepath):
     return bool(os.stat(filepath).st_file_attributes & stat.FILE_ATTRIBUTE_HIDDEN)
 
-def hash(path, chunk_size,algorithm="",log=True,sfv=""):
+def hash(path, bar, format_custom_text, chunk_size, algorithm="", verbosity=True, log=True, sfv=""):
     #0 byte files:
     # md5 d41d8cd98f00b204e9800998ecf8427e
     # LM  aad3b435b51404eeaad3b435b51404ee
@@ -230,6 +230,9 @@ def hash(path, chunk_size,algorithm="",log=True,sfv=""):
             with open(path, 'rb') as f:
                 d = f.read(chunk_size)
                 while d:
+                    if (verbosity):
+                        format_custom_text.update_mapping(f=progressFormat(path))
+                        bar.update(HASHPROGRESSCOUNTER)
                     digest.update(d)
                     d = f.read(chunk_size)
                 f.close
@@ -656,7 +659,7 @@ def compute_one(path, bar, format_custom_text, chunk_size, algorithm="", follow_
         raise   # Not expected? https://github.com/ambv/bitrot/issues/
 
     try:
-        new_hash = hash(path, chunk_size, algorithm, log, sfv)
+        new_hash = hash(path, bar, format_custom_text, chunk_size, algorithm, verbosity, log, sfv)
     except (IOError, OSError) as e:
         printAndOrLog('warning: cannot compute hash of {} [{}]'.format(path, errno.errorcode[e.args[0]],), log, sys.stderr)
         raise BitrotException
@@ -942,7 +945,7 @@ class Bitrot(object):
 
             if (self.workers == 1):
                 try:
-                    new_hash = hash(path, self.chunk_size, self.algorithm, self.log, self.sfv)
+                    new_hash = hash(path, bar, format_custom_text, self.chunk_size, self.algorithm, self.verbosity, self.log, self.sfv)
                 except (IOError, OSError) as e:
                     printAndOrLog('warning: cannot compute hash of {} [{}]'.format(path, errno.errorcode[e.args[0]],), log, sys.stderr)
                     missing_paths.discard(path)
