@@ -139,7 +139,54 @@ def str2bool(v):
 def has_hidden_attribute(filepath):
     return bool(os.stat(filepath).st_file_attributes & stat.FILE_ATTRIBUTE_HIDDEN)
 
-def hash(path, bar, format_custom_text, chunk_size, algorithm="", verbosity=True, log=True, sfv=""):
+def integrityHash(path, chunk_size=DEFAULT_CHUNK_SIZE, algorithm=DEFAULT_HASH_FUNCTION):
+    if (algorithm == "MD5"):
+        if(os.stat(path).st_size) == 0:
+            return "d41d8cd98f00b204e9800998ecf8427e"
+        else:
+            digest=hashlib.md5()          
+    elif (algorithm == "SHA1"):
+        if(os.stat(path).st_size) == 0:
+            return "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+        else:
+            digest=hashlib.sha1()
+    elif (algorithm == "SHA224"):
+        if(os.stat(path).st_size) == 0:
+            return "d14a028c2a3a2bc9476102bb288234c415a2b01f828ea62ac5b3e42f"
+        else:
+            digest=hashlib.sha224()
+    elif (algorithm == "SHA384"):
+        if(os.stat(path).st_size) == 0:
+            return "38b060a751ac96384cd9327eb1b1e36a21fdb71114be07434c0cc7bf63f6e1da274edebfe76f65fbd51ad2f14898b95b"
+        else:
+            digest=hashlib.sha384()
+    elif (algorithm == "SHA256"):
+        if(os.stat(path).st_size) == 0:
+            return "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        else:
+            digest=hashlib.sha256()
+    elif (algorithm == "SHA512"):
+        if(os.stat(path).st_size) == 0:
+            return "cf83e1357eefb8bdf1542850d66d8007d620e4050b5715dc83f4a921d36ce9ce47d0d13c5d85f2b0ff8318d2877eec2f63b931bd47417a81a538327af927da3e"
+        else:
+            digest=hashlib.sha512() 
+    else:
+        #You should never get here
+        printAndOrLog('Invalid hash function detected.',log)
+        raise('Invalid hash function detected.')
+    try:
+        if os.path.exists(path):
+            with open(path, 'rb') as f:
+                d = f.read(chunk_size)
+                while d:
+                    digest.update(d)
+                    d = f.read(chunk_size)
+                f.close()
+    except Exception as err:
+        printAndOrLog("Could not open file: \'{}\'. Received error: {}".format(path, err),log)
+    return digest.hexdigest()
+
+def hash(path, bar, format_custom_text, chunk_size=DEFAULT_CHUNK_SIZE, algorithm=DEFAULT_HASH_FUNCTION, verbosity=True, log=True, sfv=""):
     #0 byte files:
     # md5 d41d8cd98f00b204e9800998ecf8427e
     # LM  aad3b435b51404eeaad3b435b51404ee
@@ -224,7 +271,7 @@ def hash(path, bar, format_custom_text, chunk_size, algorithm="", verbosity=True
     else:
         #You should never get here
         printAndOrLog('Invalid hash function detected.',log)
-        raise Exception('Invalid hash function detected.')
+        raise('Invalid hash function detected.')
     try:
         if os.path.exists(path):
             with open(path, 'rb') as f:
@@ -235,7 +282,7 @@ def hash(path, bar, format_custom_text, chunk_size, algorithm="", verbosity=True
                         bar.update(HASHPROGRESSCOUNTER)
                     digest.update(d)
                     d = f.read(chunk_size)
-                f.close
+                f.close()
     except Exception as err:
         printAndOrLog("Could not open file: \'{}\'. Received error: {}".format(path, err),log)
 
@@ -346,7 +393,6 @@ def calculateUnits(total_size = 0):
 #            total_size = total_size
         return sizeUnits, total_size
 
-
 def cleanString(stringToClean=""):
     #stringToClean=re.sub(r'[\\/*?:"<>|]',"",stringToClean)
     stringToClean = ''.join([x for x in stringToClean if ord(x) < 128])
@@ -378,7 +424,6 @@ def progressFormat(current_path):
 def ts():
     return datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S%z')
 
-
 def get_sqlite3_cursor(path, copy=False):
     if (copy):
         if not os.path.exists(path):
@@ -398,7 +443,7 @@ def get_sqlite3_cursor(path, copy=False):
         #     if e.errno == errno.EACCES:
         except Exception as e:
             printAndOrLog("Could not open database file: \'{}\'. Received error: {}".format(path, e),log)
-            raise Exception("Could not open database file: \'{}\'. Received error: {}".format(path, e))
+            raise ("Could not open database file: \'{}\'. Received error: {}".format(path, e))
 
         path = db_copy.name
         atexit.register(os.unlink, path)
@@ -406,7 +451,7 @@ def get_sqlite3_cursor(path, copy=False):
         conn = sqlite3.connect(path)
     except Exception as err:
            printAndOrLog("Could not connect to database: \'{}\'. Received error: {}".format(path, err),log)
-           raise Exception("Could not connect to database: \'{}\'. Received error: {}".format(path, err))
+           raise ("Could not connect to database: \'{}\'. Received error: {}".format(path, err))
     atexit.register(conn.close)
     cur = conn.cursor()
     tables = set(t for t, in cur.execute('SELECT name FROM sqlite_master'))
@@ -527,8 +572,7 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                 
             try:
                 path_encoded = path.encode(FSENCODING)
-            except UnicodeDecodeError:
-                warnings.append(path)
+            except UnicodeEncodeError:
                 printAndOrLog("Warning: cannot encode file name: {}".format(path), log, sys.stderr)
                 continue
 
@@ -542,19 +586,27 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                     st = os.lstat(path)
             except OSError as ex:
                 if ex.errno not in IGNORED_FILE_SYSTEM_ERRORS:
-                    raise ("Unhandled file system error: []}".format(ex.errno))
+                    raise BitrotException("Unhandled file system error: []}".format(ex.errno))
             else:
                 # split path /dir1/dir2/file.txt into
                 # ['dir1', 'dir2', 'file.txt']
                 # and match on any of these components
                 # so we could use 'dir*', '*2', '*.txt', etc. to exclude anything
 
-                exclude_this = [fnmatch(file.encode(FSENCODING), wildcard)
-                                for file in pathIterator.split(os.path.sep)
-                                for wildcard in excluded]
-                include_this = [fnmatch(file.encode(FSENCODING), wildcard)
-                                for file in pathIterator.split(os.path.sep)
-                                for wildcard in included]
+                try:
+                    exclude_this = [fnmatch(file.encode(FSENCODING), wildcard)
+                                    for file in pathIterator.split(os.path.sep)
+                                    for wildcard in excluded]
+                except UnicodeEncodeError:
+                    printAndOrLog("Warning: cannot encode file name: {}".format(path), log, sys.stderr)
+                    continue
+                try:
+                    include_this = [fnmatch(file.encode(FSENCODING), wildcard)
+                                    for file in pathIterator.split(os.path.sep)
+                                    for wildcard in included]
+                except UnicodeEncodeError:
+                    printAndOrLog("Warning: cannot encode file name: {}".format(path), log, sys.stderr)
+                    continue
                 
                 if (not stat.S_ISREG(st.st_mode) and not os.path.islink(path)) or any(exclude_this) or any([fnmatch(path_encoded, exc) for exc in excluded]) or (included and not any([fnmatch(path_encoded, inc) for inc in included]) and not any(include_this)):
                 #if not stat.S_ISREG(st.st_mode) or any([fnmatch(path, exc) for exc in excluded]):
@@ -732,7 +784,7 @@ class Bitrot(object):
         self._last_commit_ts = time.time()
 
     def run(self):
-        check_sha512_integrity(verbosity=self.verbosity, log=self.log)
+        check_sha512_integrity(chunk_size=self.chunk_size, verbosity=self.verbosity, log=self.log)
 
         bitrot_sha512 = get_relative_path(get_absolute_path(SOURCE_DIR_PATH,ext=b'sha512'))
         bitrot_log = get_relative_path(get_absolute_path(SOURCE_DIR_PATH,ext=b'log'))
@@ -754,6 +806,7 @@ class Bitrot(object):
         cur = conn.cursor()
         futures = []
         new_paths = []
+        missing_paths = []
         existing_paths = []
         updated_paths = []
         renamed_paths = []
@@ -817,26 +870,30 @@ class Bitrot(object):
             missing_paths.discard(pathIterator)
             if (self.test == 0):
                 cur.execute('DELETE FROM bitrot WHERE path=?', (pathIterator,))
-        del temporary_paths
+        if temporary_paths:
+             del temporary_paths
 
         if self.verbosity:
             print("Hashing all files... Please wait...")
             format_custom_text = progressbar.FormatCustomText('%(f)s',dict(f='',))
-            bar = progressbar.ProgressBar(max_value=len(paths),widgets=[format_custom_text,
+            bar = progressbar.ProgressBar(max_value=LENPATHS,widgets=[format_custom_text,
                 CustomETA(format_not_started='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s|ETA:%(eta)8s', format_finished='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s|ETA:%(eta)8s', format_zero='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format_NA='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s'),
                 progressbar.Bar(marker='#', left='|', right='|', fill=' ', fill_left=True),               
                 ])
-            if (len(paths) > 0):
+            if (LENPATHS > 0):
                 format_custom_text.update_mapping(f=progressFormat(paths[HASHPROGRESSCOUNTER]))
                 bar.update(HASHPROGRESSCOUNTER)
 
         if (self.workers == 1):
             pointer = paths
-            del paths
+            if paths:
+                 del paths
         else:
             futures = [self.pool.submit(compute_one, pathIterator, bar, format_custom_text, self.chunk_size, self.algorithm, self.follow_links, self.verbosity, self.log, self.sfv) for pathIterator in paths]
             pointer = as_completed(futures)
-            del futures
+            if futures:
+                del futures
+        gc.collect()
 
         for future in pointer:
             if (self.workers == 1):
@@ -1039,9 +1096,53 @@ class Bitrot(object):
                 self.log
             )
 
+        # if total_size:
+        #     del total_size
+        # if all_count:
+        #     del all_count
+        # if errors:
+        #     del errors
+        # if warnings:
+        #     del warnings
+        # if existing_paths:
+        #     del existing_paths
+        # if new_paths:
+        #     del new_paths
+        # if updated_paths:
+        #     del updated_paths
+        # if renamed_paths:
+        #     del renamed_paths
+        # if missing_paths:
+        #     del missing_paths
+        # if tooOldList:
+        #     del tooOldList
+        # if excludedList:
+        #     del excludedList
+        # if fixedRenameList:
+        #     del fixedRenameList
+        # if fixedRenameCounter:
+        #     del fixedRenameCounter
+        # if fixedPropertiesList:
+        #     del fixedPropertiesList
+        # if fixedPropertiesCounter:
+        #     del fixedPropertiesCounter
+        # if pointer:
+        #     del pointer
+        # if emails:
+        #     del emails
+        # if current_size:
+        #     del current_size
+        # if bar:
+        #     del bar
+        # if format_custom_text:
+        #     del format_custom_text
+        # if paths:
+        #     del paths
+        # gc.collect()
+
         if (self.test == 0):
             cur.execute('vacuum')
-            update_sha512_integrity(verbosity=self.verbosity, log=self.log)
+            update_sha512_integrity(chunk_size=self.chunk_size, verbosity=self.verbosity, log=self.log)
 
         if self.test and self.verbosity:
             printAndOrLog('Database file not updated on disk (test mode).',self.log)
@@ -1096,7 +1197,7 @@ class Bitrot(object):
         totalFixed = fixedRenameCounter + fixedPropertiesCounter
         if self.verbosity >= 1:
             print()
-            printAndOrLog('\nFinished. {:.2f} {} of data read.'.format(total_size,sizeUnits),log)
+            printAndOrLog('Finished. {:.2f} {} of data read.'.format(total_size,sizeUnits),log)
         
         if (error_count == 1):
             printAndOrLog('1 error found.',log)
@@ -1215,9 +1316,6 @@ class Bitrot(object):
                 for i in range(0, fixedPropertiesCounter):
                     printAndOrLog('  Added missing access or modification timestamp to {}'.format(fixedPropertiesList[i][0]),log)
             
-        printAndOrLog("\n")
-
-
     def handle_unknown_path(self, cur, new_path, new_mtime, new_hash, paths, hashes, test, log):
         """Either add a new entry to the database or update the existing entry
         on rename.
@@ -1256,7 +1354,11 @@ def get_absolute_path(directory=b'.', ext=b'db'):
 
 def get_relative_path(directory=b'.'):
     relative_path = os.path.relpath(directory)
-    relative_path = relative_path.decode(FSENCODING)
+    try:
+        relative_path = relative_path.decode(FSENCODING)
+    except UnicodeDecodeError:
+        printAndOrLog("Warning: cannot decode file name: {}".format(path), log, sys.stderr)
+        raise BitrotException("Warning: cannot decode file name: {}".format(path))
     relative_path = os.path.join('.\\',relative_path)
     relative_path = bytes(relative_path, FSENCODING)
 
@@ -1269,7 +1371,11 @@ def stable_sum(bitrot_db=None):
     timing information."""
     if bitrot_db is None:
         bitrot_db = get_absolute_path(SOURCE_DIR_PATH,'db')
-        bitrot_db = bitrot_db.decode(FSENCODING)
+        try:
+            bitrot_db = bitrot_db.decode(FSENCODING)
+        except UnicodeDecodeError:
+            printAndOrLog("Warning: cannot decode file name: {}".format(path), log, sys.stderr)
+            raise BitrotException("Warning: cannot decode file name: {}".format(path))
         if not os.path.exists(bitrot_db):
             print("Database {} does not exist. Cannot calculate sum.".format(bitrot_db))
             exit()
@@ -1283,104 +1389,106 @@ def stable_sum(bitrot_db=None):
         row = cur.fetchone()
     return digest.hexdigest()
 
-def check_sha512_integrity(verbosity=1, log=True):
+def check_sha512_integrity(chunk_size=DEFAULT_CHUNK_SIZE, verbosity=1, log=True):
     sha512_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'sha512')
-    sha512_path = sha512_path.decode(FSENCODING)
-    bitrot_db = get_absolute_path(SOURCE_DIR_PATH,'db')
-    bitrot_db = bitrot_db.decode(FSENCODING)
+    bitrot_db_path = get_absolute_path(SOURCE_DIR_PATH,'db')
+    try:
+        sha512_path = sha512_path.decode(FSENCODING)
+    except UnicodeDecodeError:
+        printAndOrLog("Warning: cannot decode file name: {}".format(path), log, sys.stderr)
+        raise BitrotException("Warning: cannot decode file name: {}".format(path))
+
+    try:
+        bitrot_db_path = bitrot_db_path.decode(FSENCODING)
+    except UnicodeDecodeError:
+        printAndOrLog("Warning: cannot decode file name: {}".format(path), log, sys.stderr)
+        raise BitrotException("Warning: cannot decode file name: {}".format(path))
+
+    if not os.path.exists(sha512_path):
+        return
+    if not os.path.exists(bitrot_db_path):
+        return
 
     if verbosity:
         printAndOrLog('Checking bitrot.db integrity...\n',log)
+       
     try:
-        if os.path.exists(sha512_path):
-            with open(sha512_path, 'rb') as f:
-                old_sha512 = f.read().strip()
-                f.close()
-    # except IOError as e:
-    #     if e.errno == errno.EACCES:
+        with open(sha512_path, 'rb') as f:
+            old_sha512 = f.read().strip()
+            old_sha512 = old_sha512.decode()
+            f.close()
     except Exception as e:
         printAndOrLog("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e),log)
-        raise ("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e))    
-   
-    if not os.path.exists(sha512_path):
-        return
-
-    digest = hashlib.sha512()
+        raise ("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e))   
 
     try:
-        if os.path.exists(bitrot_db):
-            with open(bitrot_db, 'rb') as f:
-                digest.update(f.read())
-                f.close()
-    # except IOError as e:
-    #     if e.errno == errno.EACCES:
+        new_sha512 = integrityHash(bitrot_db_path, chunk_size, "SHA512")
+
     except Exception as e:
-        printAndOrLog("Could not open database file: \'{}\'. Received error: {}".format(bitrot_db, e),log)
-        raise Exception("Could not open database file: \'{}\'. Received error: {}".format(bitrot_db, e))   
+        printAndOrLog("Could not open database file: \'{}\'. Received error: {}".format(bitrot_db_path, e),log)
+        raise BitrotException("Could not open database file: \'{}\'.".format(bitrot_db_path))   
 
-    if not os.path.exists(bitrot_db):
-        return
-
-    new_sha512 = digest.hexdigest().encode('ascii')
     if new_sha512 != old_sha512:
         if len(old_sha512) == 128:
             printAndOrLog(
                 "\nError: SHA512 of the database file \'{}\' is different, bitrot.db might "
-                "be corrupt.".format(bitrot_db),log)
+                "be corrupt.".format(bitrot_db_path),log)
         else:
             printAndOrLog(
                 "\nError: SHA512 of the database file \'{}\' is different, but bitrot.sha512 "
-                "has a suspicious length. It might be corrupt.".format(bitrot_db),log)
+                "has a suspicious length. It might be corrupt.".format(bitrot_db_path),log)
         printAndOrLog("If you'd like to continue anyway, delete the .bitrot.sha512 file and try again.",log)
         printAndOrLog("bitrot.db integrity check failed, cannot continue.",log)
 
         raise BitrotException(3, 'bitrot.db integrity check failed, cannot continue.',)
 
-def update_sha512_integrity(verbosity=1, log=True):
-    old_sha512 = 0
+def update_sha512_integrity(chunk_size=DEFAULT_CHUNK_SIZE, verbosity=1, log=True):
     sha512_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'sha512')
-    sha512_path = sha512_path.decode(FSENCODING)
-    bitrot_db = get_absolute_path(SOURCE_DIR_PATH,'db')
-    bitrot_db = bitrot_db.decode(FSENCODING)
+    bitrot_db_path = get_absolute_path(SOURCE_DIR_PATH,'db')
+    # except IOError as e:
+    #     if e.errno == errno.EACCES:
+    try:
+        sha512_path= sha512_path.decode(FSENCODING)
+    except UnicodeDecodeError:
+        printAndOrLog("Warning: cannot decode file name: {}".format(path), log, sys.stderr)
+        raise BitrotException("Warning: cannot decode file name: {}".format(path))
+    try:
+        bitrot_db_path = bitrot_db_path.decode(FSENCODING)
+    except UnicodeDecodeError:
+        printAndOrLog("Warning: cannot decode file name: {}".format(path), log, sys.stderr)
+        raise BitrotException("Warning: cannot decode file name: {}".format(path))
 
-    if os.path.exists(sha512_path):
+    if not os.path.exists(bitrot_db_path):
+        printAndOrLog("Could not open database file: \'{}\'.".format(bitrot_db_path),log)
+        raise BitrotException("Could not open database file: \'{}\'.".format(bitrot_db_path))
+    if not os.path.exists(sha512_path):
+           old_sha512 = 0
+    else:
         try:
             with open(sha512_path, 'rb') as f:
                 old_sha512 = f.read().strip()
+                old_sha512 = old_sha512.decode()
                 f.close()
-        # except IOError as e:
-        #     if e.errno == errno.EACCES:
         except Exception as e:
             printAndOrLog("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e),log)
-            raise Exception("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e))    
+            raise BitrotException("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e))   
 
-    digest = hashlib.sha512()
-    if os.path.exists(bitrot_db):
-        try:
-            with open(bitrot_db, 'rb') as f:
-                digest.update(f.read())
-                f.close()
-        except Exception as err:
-            printAndOrLog("Could not open database file: \'{}\'. Received error: {}".format(bitrot_db, err),log)
-            raise Exception("Could not open database file: \'{}\'. Received error: {}".format(bitrot_db, err),log)
-    else:
-        printAndOrLog("Could not open database file: \'{}\'. It does not exist.".format(bitrot_db),log)
-        raise Exception("Could not open database file: \'{}\'. It does not exist.".format(bitrot_db),log) 
+    try:
+        new_sha512 = integrityHash(bitrot_db_path, chunk_size, "SHA512")
+    except Exception as e:
+        printAndOrLog("Could not open database file: \'{}\'. Received error: {}".format(bitrot_db_path, e),log)
+        raise BitrotException("Could not open database file: \'{}\'. Received error: {}".format(bitrot_db_path, e))
 
-    new_sha512 = digest.hexdigest().encode('ascii')
     if new_sha512 != old_sha512:
         if verbosity:
             printAndOrLog('Updating bitrot.sha512...',log)
-        
         try:
             with open(sha512_path, 'wb') as f:
-                f.write(new_sha512)
+                f.write(str.encode(new_sha512))
                 f.close()
-        # except IOError as e:
-        #     if e.errno == errno.EACCES:
         except Exception as e:
-            printAndOrLog("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e),log)
-            raise Exception("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e))   
+            printAndOrLog("Could not write integrity file: \'{}\'. Received error: {}".format(sha512_path, e),log)
+            raise BitrotException("Could not write integrity file: \'{}\'. Received error: {}".format(sha512_path, e))   
 
 def recordTimeElapsed(startTime=0):
     elapsedTime = (time.time() - startTime)  
@@ -1596,7 +1704,6 @@ def run_from_command_line():
         queuedMessages.append("Invalid test option selected: " + args.test +". Using default level 0: testing-only disabled.")
         test = 0
 
-
     if not args.destination:
         if verbosity:
             printAndOrLog('Using current directory for destination file list.',log)
@@ -1616,7 +1723,9 @@ def run_from_command_line():
 
     for message in queuedMessages:
         printAndOrLog(message,log)
-    del queuedMessages
+    if queuedMessages:
+        del queuedMessages
+        gc.collect()
 
     include_list = []
     if args.include_list:
@@ -1626,7 +1735,11 @@ def run_from_command_line():
             #include_list = [line.rstrip('\n').encode(FSENCODING) for line in open(args.include_list)]
             with open(args.include_list) as includeFile:
                 for line in includeFile:
-                    line = line.rstrip('\n').encode(FSENCODING)
+                    try:
+                        line = line.rstrip('\n').encode(FSENCODING)
+                    except UnicodeEncodeError:
+                        printAndOrLog("Warning: cannot encode file name: {}".format(path), log, sys.stderr)
+                        raise BitrotException("Warning: cannot encode file name: {}".format(path))
                     include_list.append(line)
                 includeFile.close() # should be harmless if include_list == sys.stdin
 
@@ -1643,7 +1756,11 @@ def run_from_command_line():
             # exclude_list = [line.rstrip('\n').encode(FSENCODING) for line in open(args.exclude_list)]
             with open(args.exclude_list) as excludeFile:
                 for line in excludeFile:
-                    line = line.rstrip('\n').encode(FSENCODING)
+                    try:
+                        line = line.rstrip('\n').encode(FSENCODING)
+                    except UnicodeEncodeError:
+                        printAndOrLog("Warning: cannot encode file name: {}".format(path), log, sys.stderr)
+                        raise BitrotException("Warning: cannot encode file name: {}".format(path))
                     exclude_list.append(line)
                 excludeFile.close() # should be harmless if include_list == sys.stdin
         except Exception as err:
