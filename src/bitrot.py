@@ -1068,9 +1068,9 @@ class Bitrot(object):
                     emailToSendString +="Last good hash checked on {}\n\n".format(emails[i][4])
                 sendEmail(MESSAGE=emailToSendString, SUBJECT="FIM Error", log=self.log,verbosity=self.verbosity)
             
-        for pathIterator in missing_paths:
             if (self.test == 0):
-                cur.execute('DELETE FROM bitrot WHERE path=?', (pathIterator,))
+                for pathIterator in missing_paths:
+                    cur.execute('DELETE FROM bitrot WHERE path=?', (pathIterator,))
 
         conn.commit()
 
