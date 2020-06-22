@@ -54,7 +54,7 @@ import unicodedata
 import gc
 
 ################### USER CONFIG ###################
-SERVER = smtplib.SMTP('smtp.emailprovider.com', 587)
+SERVER = smtplib.SMTP('smtp.gmail.com', 587)
 DEFAULT_HASH_FUNCTION = "SHA512"
 DEFAULT_CHUNK_SIZE = 1048576 # used to be 16384 - block size in HFS+; 4X the block size in ext4
 DEFAULT_COMMIT_INTERVAL = 300
@@ -764,7 +764,7 @@ class Bitrot(object):
         #ProcessPoolExecutor runs each of your workers in its own separate child process. (CPU Bound)
         #ThreadPoolExecutor runs each of your workers in separate threads within the main process. (IO Bound)
         self.workers = workers
-        if (workers != 1):
+        if (workers != 99):
             self.pool = ThreadPoolExecutor(max_workers=workers)
         self.email = email
         self.log = log
@@ -884,7 +884,7 @@ class Bitrot(object):
                 format_custom_text.update_mapping(f=progressFormat(paths[HASHPROGRESSCOUNTER]))
                 bar.update(HASHPROGRESSCOUNTER)
 
-        if (self.workers == 1):
+        if (self.workers == 99):
             pointer = paths
             if paths:
                  del paths
@@ -896,7 +896,7 @@ class Bitrot(object):
         gc.collect()
 
         for future in pointer:
-            if (self.workers == 1):
+            if (self.workers == 99):
                 path = future
                 try:
                     st = os.stat(path)
@@ -914,7 +914,7 @@ class Bitrot(object):
                 except BitrotException:
                     continue
 
-            if (self.workers == 1):
+            if (self.workers == 99):
                 if self.verbosity:
                     HASHPROGRESSCOUNTER+=1
                 new_mtime = int(st.st_mtime)
@@ -995,7 +995,7 @@ class Bitrot(object):
 
             current_size += new_size
 
-            if (self.workers == 1):
+            if (self.workers == 99):
                 try:
                     new_hash = hash(path, bar, format_custom_text, self.chunk_size, self.algorithm, self.verbosity, self.log, self.sfv)
                 except (IOError, OSError) as e:
@@ -1006,7 +1006,7 @@ class Bitrot(object):
             if path not in missing_paths:
                 # We are not expecting this path, it wasn't in the database yet.
                 # It's either new, a rename, or recently excluded. Let's handle that 
-                if (self.workers == 1):
+                if (self.workers == 99):
                     stored_path = self.handle_unknown_path(cur, path, new_mtime, new_hash, pointer, hashes, self.test, self.log)
                 else:
                     stored_path = self.handle_unknown_path(cur, path, new_mtime, new_hash, paths, hashes, self.test, self.log)
@@ -1520,7 +1520,9 @@ def recordTimeElapsed(startTime=0):
         units = "sec"
 
     return "{:.1f}".format(elapsedTime) + units
-
+def main():
+    run_from_command_line()
+    
 def run_from_command_line():
     global FSENCODING
     global SOURCE_DIR

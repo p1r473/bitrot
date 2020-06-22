@@ -5,6 +5,13 @@ bitrot
 Detects bit rotten files on the hard drive to save your precious photo
 and music collection from slow decay.
 
+Installation
+------------
+Windows:
+pip3 install .
+
+Linux:
+
 Usage
 -----
 
@@ -13,15 +20,15 @@ Go to the desired directory and simply invoke::
   $ bitrot
 
 This will start digging through your directory structure recursively
-indexing all files found. The index is stored in a ``.bitrot.db`` file
+indexing all files found. The index is stored in a ''.bitrot.db'' file
 which is a SQLite 3 database.
 
-Next time you run ``bitrot`` it will add new files and update the index
+Next time you run ''bitrot'' it will add new files and update the index
 for files with a changed modification date. Most importantly however, it
 will report all errors, e.g. files that changed on the hard drive but
 still have the same modification date.
 
-All paths stored in ``.bitrot.db`` are relative so it's safe to rescan
+All paths stored in ''.bitrot.db'' are relative so it's safe to rescan
 a folder after moving it to another drive. Just remember to move it in
 a way that doesn't touch modification dates. Otherwise the checksum
 database is useless.
@@ -34,7 +41,7 @@ the script was single-threaded because back in 2013 checksum
 calculations on a single core still outran typical drives, including
 the mobile SSDs of the day.  In 2020 this is no longer the case so the
 script now uses a process pool to calculate SHA1 hashes and perform
-`stat()` calls.
+'stat()' calls.
 
 No rigorous performance tests have been done.  Scanning a ~1000 file
 directory totalling ~5 GB takes 2.2s on a 2018 MacBook Pro 15" with
@@ -49,8 +56,8 @@ Tests
 -----
 
 There's a simple but comprehensive test scenario using
-`BATS <https://github.com/sstephenson/bats>`.  Run the
-file in the `tests` directory to run it.
+'BATS <https://github.com/sstephenson/bats>'.  Run the
+file in the 'tests' directory to run it.
 
 Change Log
 ----------
@@ -147,11 +154,11 @@ Change Log
 0.6.0
 ~~~~~
 
-* more control over performance with ``--commit-interval`` and
-  ``--chunk-size`` command-line arguments
+* more control over performance with ''--commit-interval'' and
+  ''--chunk-size'' command-line arguments
 
 * bugfix: symbolic links are now properly skipped (or can be followed if
-  ``--follow-links`` is passed)
+  ''--follow-links'' is passed)
 
 * bugfix: files that cannot be opened are now gracefully skipped
 
@@ -165,7 +172,7 @@ Change Log
 0.5.0
 ~~~~~
 
-* ``--test`` command-line argument for testing the state without
+* ''--test'' command-line argument for testing the state without
   updating the database on disk (works for testing databases you don't
   have write access to)
 
@@ -186,19 +193,19 @@ Change Log
 0.3.0
 ~~~~~
 
-* ``--sum`` command-line argument for easy comparison of multiple
+* ''--sum'' command-line argument for easy comparison of multiple
   databases
 
 0.2.1
 ~~~~~
 
-* fixed regression from 0.2.0 where new files caused a ``KeyError``
+* fixed regression from 0.2.0 where new files caused a ''KeyError''
   exception
 
 0.2.0
 ~~~~~
 
-* ``--verbose`` and ``--quiet`` command-line arguments
+* ''--verbose'' and ''--quiet'' command-line arguments
 
 * if a file is no longer there, its entry is removed from the database
 
@@ -210,15 +217,15 @@ Change Log
 Authors
 -------
 
-Glued together by `Łukasz Langa <mailto:lukasz@langa.pl>`_. Multiple
+Glued together by 'Lukasz Langa <mailto:lukasz@langa.pl>'_. Multiple
 improvements by
-`Ben Shepherd <mailto:bjashepherd@gmail.com>`_,
-`Jean-Louis Fuchs <mailto:ganwell@fangorn.ch>`_,
-`Marcus Linderoth <marcus@thingsquare.com>`_,
-`p1r473 <mailto:newpassword@gmail.com>`_,
-`Peter Hofmann <mailto:scm@uninformativ.de>`_,
-`Phil Lundrigan <mailto:philipbl@cs.utah.edu>`_,
-`Reid Williams <rwilliams@ideo.com>`_,
-`Stan Senotrusov <senotrusov@gmail.com>`_,
-`Yang Zhang <mailto:yaaang@gmail.com>`_, and
-`Zhuoyun Wei <wzyboy@wzyboy.org>`_
+'Ben Shepherd <mailto:bjashepherd@gmail.com>'_,
+'Jean-Louis Fuchs <mailto:ganwell@fangorn.ch>'_,
+'Marcus Linderoth <marcus@thingsquare.com>'_,
+'p1r473 <mailto:newpassword@gmail.com>'_,
+'Peter Hofmann <mailto:scm@uninformativ.de>'_,
+'Phil Lundrigan <mailto:philipbl@cs.utah.edu>'_,
+'Reid Williams <rwilliams@ideo.com>'_,
+'Stan Senotrusov <senotrusov@gmail.com>'_,
+'Yang Zhang <mailto:yaaang@gmail.com>'_, and
+'Zhuoyun Wei <wzyboy@wzyboy.org>'_

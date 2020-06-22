@@ -1,67 +1,74 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-
-# Copyright (C) 2013 by Łukasz Langa
+#!/usr/bin/python
 #
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-# THE SOFTWARE.
-
+# Copyright 2020 Google LLC
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#      http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 import codecs
 import os
 import sys
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
-current_dir = os.path.abspath(os.path.dirname(__file__))
-ld_file = codecs.open(os.path.join(current_dir, 'README.rst'), encoding='utf8')
-try:
-    long_description = ld_file.read()
-finally:
-    ld_file.close()
-# We let it die a horrible tracebacking death if reading the file fails.
-# We couldn't sensibly recover anyway: we need the long description.
 
-sys.path.insert(0, current_dir + os.sep + 'src')
-from bitrot import VERSION
-release = ".".join(str(num) for num in VERSION)
+def readme():
+  try:
+    current_dir = os.path.abspath(os.path.dirname(__file__))
+    longdescription_file = codecs.open(os.path.join(current_dir, 'README.rst'), encoding='utf8')
+    try:
+        file = longdescription_file.read()
+    finally:
+        file.close()
+    # We let it die a horrible tracebacking death if reading the file fails.
+    # We couldn't sensibly recover anyway: we need the long description.
+    sys.path.insert(0, current_dir + os.sep + 'src')
+    return longdescription_file
+  except Exception:
+    return None
+
+def version():
+    try:
+        current_dir = os.path.abspath(os.path.dirname(__file__))
+    except Exception:
+        return None
+    sys.path.insert(0, current_dir + os.sep + 'bitrot')
+    from bitrot import VERSION
+    release = ".".join(str(num) for num in VERSION)
+    return release
+
+REQUIRED_PACKAGES = [
+    'futures',
+    'progressbar2',
+]
+
 
 setup(
-    name = 'bitrot',
-    version = release,
+    name='bitrot',
+    version=version(),
     author = u'Łukasz Langa',
     author_email = 'lukasz@langa.pl',
     description = ("Detects bit rotten files on the hard drive to save your "
                    "precious photo and music collection from slow decay."),
-    long_description = long_description,
+    long_description = readme(),
     url = 'https://github.com/ambv/bitrot/',
     keywords = 'file checksum database',
     platforms = ['any'],
     license = 'MIT',
-    package_dir = {'': 'src'},
-    packages = find_packages('src'),
-    py_modules = ['bitrot'],
-    scripts = ['bin/bitrot'],
-    include_package_data = True,
-    zip_safe = False, # if only because of the readme file
-    install_requires = [
-        'futures; python_version == "2.7"'
-        'progressbar2'
-        
-    ],
+    python_requires='>=2.7.0',
+    install_requires=REQUIRED_PACKAGES,
+    include_package_data=True,
+    packages=find_packages(exclude=('tests', 'docs')),
+    py_modules=['bitrot'],
+    scripts = ['bitrot.py'],
+    zip_safe = True,
     classifiers = [
         'Development Status :: 4 - Beta',
         'License :: OSI Approved :: MIT License',
@@ -74,5 +81,5 @@ setup(
         'Topic :: System :: Filesystems',
         'Topic :: System :: Monitoring',
         'Topic :: Software Development :: Libraries :: Python Modules',
-        ]
-    )
+        ],
+    entry_points={'console_scripts': ['bitrot = bitrot:run_from_command_line']})
