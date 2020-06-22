@@ -59,7 +59,7 @@ setup(
     zip_safe = False, # if only because of the readme file
     install_requires = [
         'futures; python_version == "2.7"'
-        'progressbar2 == "3.39.3"'
+        'progressbar2'
         
     ],
     classifiers = [
