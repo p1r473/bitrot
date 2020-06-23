@@ -612,11 +612,6 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                     printAndOrLog("Warning: cannot encode file name: {}".format(path), log, sys.stderr)
                     continue
 
-                # for exclusion in excluded:
-                #     exclusion = exclusion.encode(FSENCODING)
-                # for inclusion in included:
-                #     inclusion = inclusion.encode(FSENCODING)
-
                 if (not stat.S_ISREG(st.st_mode) and not os.path.islink(path)) or any(exclude_this) or any([fnmatch(path, exc) for exc in excluded]) or (included and not any([fnmatch(path, inc) for inc in included]) and not any(include_this)):
                 #if not stat.S_ISREG(st.st_mode) or any([fnmatch(path, exc) for exc in excluded]):
                     excludedList.append(path)
@@ -1381,7 +1376,7 @@ def get_relative_path(directory=b'.', log=True):
         raise BitrotException("Warning: cannot decode file name: {}".format(path))
 
     if (_platform == "linux" or _platform == "linux2"):
-       relative_path = os.path.join('./',relative_path)
+       relative_path = os.path.join('.',relative_path)
     elif (_platform == "win32" or _platform == "win64"):
         relative_path = os.path.join('.\\',relative_path)
     elif (_platform == "darwin"):
