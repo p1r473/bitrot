@@ -1,4 +1,5 @@
 .bitrot.db
 .bitrot.sha512
+.bitrot.log
 include.txt
 exclude.txt

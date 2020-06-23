@@ -34,6 +34,7 @@ import errno
 import hashlib
 import os
 from os import path
+from sys import platform as _platform
 import pathlib
 import shutil
 import sqlite3
@@ -52,7 +53,6 @@ import zlib
 import re
 import unicodedata
 import gc
-
 
 ################### USER CONFIG ###################
 RECEIVER = 'RECEIVER@gmail.com'
@@ -104,11 +104,11 @@ def normalize_path(path):
 def printAndOrLog(stringToProcess, log=True, stream=sys.stdout):
     print(stringToProcess,file=stream)
     if (log):
-        writeToLog('\n')
-        writeToLog(stringToProcess)
+        writeToLog(log, '\n')
+        writeToLog(log, stringToProcess)
 
-def writeToLog(stringToWrite=""):
-    log_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'log')
+def writeToLog(log = True, stringToWrite=""):
+    log_path = get_absolute_path(log, SOURCE_DIR_PATH,ext=b'log')
     stringToWrite = cleanString(stringToWrite)
     try:
         with open(log_path, 'a') as logFile:
@@ -119,9 +119,9 @@ def writeToLog(stringToWrite=""):
 
 def writeToSFV(stringToWrite="", sfv="",log=True):
     if (sfv == "MD5"):
-        sfv_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'md5')
+        sfv_path = get_absolute_path(log, SOURCE_DIR_PATH,ext=b'md5')
     elif (sfv == "SFV"):
-        sfv_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'sfv')
+        sfv_path = get_absolute_path(log, SOURCE_DIR_PATH,ext=b'sfv')
     try:
         with open(sfv_path, 'a') as sfvFile:
             sfvFile.write(stringToWrite)
@@ -182,7 +182,7 @@ def integrityHash(path, chunk_size=DEFAULT_CHUNK_SIZE, algorithm=DEFAULT_HASH_FU
     else:
         #You should never get here
         printAndOrLog('Invalid hash function detected.',log)
-        raise('Invalid hash function detected.')
+        raise BitrotException('Invalid hash function detected.')
     try:
         if os.path.exists(path):
             with open(path, 'rb') as f:
@@ -280,7 +280,7 @@ def hash(path, bar, format_custom_text, chunk_size=DEFAULT_CHUNK_SIZE, algorithm
     else:
         #You should never get here
         printAndOrLog('Invalid hash function detected.',log)
-        raise('Invalid hash function detected.')
+        raise BitrotException('Invalid hash function detected.')
     try:
         if os.path.exists(path):
             with open(path, 'rb') as f:
@@ -433,7 +433,7 @@ def progressFormat(current_path):
 def ts():
     return datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S%z')
 
-def get_sqlite3_cursor(path, copy=False):
+def get_sqlite3_cursor(path, copy=False, log=True):
     if (copy):
         if not os.path.exists(path):
             raise ValueError("Error: bitrot database at {} does not exist.".format(path))
@@ -452,7 +452,7 @@ def get_sqlite3_cursor(path, copy=False):
         #     if e.errno == errno.EACCES:
         except Exception as e:
             printAndOrLog("Could not open database file: \'{}\'. Received error: {}".format(path, e),log)
-            raise ("Could not open database file: \'{}\'. Received error: {}".format(path, e))
+            raise BitrotException("Could not open database file: \'{}\'. Received error: {}".format(path, e))
 
         path = db_copy.name
         atexit.register(os.unlink, path)
@@ -460,7 +460,7 @@ def get_sqlite3_cursor(path, copy=False):
         conn = sqlite3.connect(path)
     except Exception as err:
            printAndOrLog("Could not connect to database: \'{}\'. Received error: {}".format(path, err),log)
-           raise ("Could not connect to database: \'{}\'. Received error: {}".format(path, err))
+           raise BitrotException("Could not connect to database: \'{}\'. Received error: {}".format(path, err))
     atexit.register(conn.close)
     cur = conn.cursor()
     tables = set(t for t, in cur.execute('SELECT name FROM sqlite_master'))
@@ -559,6 +559,7 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
     # excluded = [get_relative_path(pathIterator) for pathIterator in excluded]
     # excluded = [pathIterator.decode(FSENCODING) for pathIterator in excluded]
 
+
     paths = set()
     total_size = 0
     excludedList = []
@@ -580,12 +581,6 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
             path = normalize_path(path)
                 
             try:
-                path_encoded = path.encode(FSENCODING)
-            except UnicodeEncodeError:
-                printAndOrLog("Warning: cannot encode file name: {}".format(path), log, sys.stderr)
-                continue
-
-            try:
                 if os.path.islink(path):
                     if follow_links:
                         st = os.stat(path)
@@ -603,21 +598,26 @@ def list_existing_paths(directory=SOURCE_DIR, expected=(), excluded=(), included
                 # so we could use 'dir*', '*2', '*.txt', etc. to exclude anything
 
                 try:
-                    exclude_this = [fnmatch(file.encode(FSENCODING), wildcard)
+                    exclude_this = [fnmatch(file, wildcard)
                                     for file in pathIterator.split(os.path.sep)
                                     for wildcard in excluded]
                 except UnicodeEncodeError:
                     printAndOrLog("Warning: cannot encode file name: {}".format(path), log, sys.stderr)
                     continue
                 try:
-                    include_this = [fnmatch(file.encode(FSENCODING), wildcard)
+                    include_this = [fnmatch(file, wildcard)
                                     for file in pathIterator.split(os.path.sep)
                                     for wildcard in included]
                 except UnicodeEncodeError:
                     printAndOrLog("Warning: cannot encode file name: {}".format(path), log, sys.stderr)
                     continue
-                
-                if (not stat.S_ISREG(st.st_mode) and not os.path.islink(path)) or any(exclude_this) or any([fnmatch(path_encoded, exc) for exc in excluded]) or (included and not any([fnmatch(path_encoded, inc) for inc in included]) and not any(include_this)):
+
+                # for exclusion in excluded:
+                #     exclusion = exclusion.encode(FSENCODING)
+                # for inclusion in included:
+                #     inclusion = inclusion.encode(FSENCODING)
+
+                if (not stat.S_ISREG(st.st_mode) and not os.path.islink(path)) or any(exclude_this) or any([fnmatch(path, exc) for exc in excluded]) or (included and not any([fnmatch(path, inc) for inc in included]) and not any(include_this)):
                 #if not stat.S_ISREG(st.st_mode) or any([fnmatch(path, exc) for exc in excluded]):
                     excludedList.append(path)
                 elif (not hidden and has_hidden_attribute(path)):
@@ -795,22 +795,25 @@ class Bitrot(object):
     def run(self):
         check_sha512_integrity(chunk_size=self.chunk_size, verbosity=self.verbosity, log=self.log)
 
-        bitrot_sha512 = get_relative_path(get_absolute_path(SOURCE_DIR_PATH,ext=b'sha512'))
-        bitrot_log = get_relative_path(get_absolute_path(SOURCE_DIR_PATH,ext=b'log'))
-        bitrot_db = get_relative_path(get_absolute_path(SOURCE_DIR_PATH,b'db'))
-        bitrot_sfv = get_relative_path(get_absolute_path(SOURCE_DIR_PATH,ext=b'sfv'))
-        bitrot_md5 = get_relative_path(get_absolute_path(SOURCE_DIR_PATH,ext=b'md5'))
+        bitrot_sha512 = get_relative_path(get_absolute_path(self.log, SOURCE_DIR_PATH,ext=b'sha512'),self.log)
+        bitrot_log = get_relative_path(get_absolute_path(self.log, SOURCE_DIR_PATH,ext=b'log'), self.log)
+        bitrot_db = get_relative_path(get_absolute_path(self.log, SOURCE_DIR_PATH,b'db'), self.log)
+        bitrot_sfv = get_relative_path(get_absolute_path(self.log, SOURCE_DIR_PATH,ext=b'sfv'), self.log)
+        bitrot_md5 = get_relative_path(get_absolute_path(self.log, SOURCE_DIR_PATH,ext=b'md5'), self.log)
 
         #bitrot_db = os.path.basename(get_absolute_path())
         #bitrot_sha512 = os.path.basename(get_absolute_path(ext=b'sha512'))
         #bitrot_log = os.path.basename(get_absolute_path(ext=b'log'))
 
+        if (not os.path.exists(bitrot_db) and self.test != 0):
+            printAndOrLog("No database exists so cannot test. Run the tool once first.", self.log, sys.stderr)
+            exit()
+
         try:
-            conn = get_sqlite3_cursor(bitrot_db, copy=self.test)
+            conn = get_sqlite3_cursor(bitrot_db, copy=self.test, log=self.log)
         except ValueError:
-            raise BitrotException(2,'No database exists so cannot test. Run the tool once first.')
-            if (log):
-                printAndOrLog("No database exists so cannot test. Run the tool once first.",self.log)
+            printAndOrLog("No database exists so cannot test. Run the tool once first.", self.log, sys.stderr)
+            raise BitrotException('No database exists so cannot test. Run the tool once first.')
 
         cur = conn.cursor()
         futures = []
@@ -854,7 +857,7 @@ class Bitrot(object):
         paths, total_size, excludedList = list_existing_paths(
             SOURCE_DIR,
             expected=missing_paths, 
-            excluded=[bitrot_db, bitrot_sha512,bitrot_log,bitrot_sfv,bitrot_md5] + self.exclude_list,
+            excluded=[bitrot_db, bitrot_sha512, bitrot_log, bitrot_sfv, bitrot_md5 ] + self.exclude_list,
             included=self.include_list,
             follow_links=self.follow_links,
             verbosity=self.verbosity,
@@ -1354,32 +1357,48 @@ class Bitrot(object):
                 printAndOrLog("Could not save hash: \'{}\'. Received error: {}".format(new_path, e),log)
             return new_path
 
-def get_absolute_path(directory=b'.', ext=b'db'):
+def get_absolute_path(log=True, directory=b'.', ext=b'db'):
     """Compose the path to the selected bitrot file."""
-    directory = os.fsencode(directory)
-    ext = os.fsencode(ext)
-    abspath = os.path.join(directory, b'.bitrot.' + ext)
+    try:
+        directory = os.fsencode(directory)
+        ext = os.fsencode(ext)
+        abspath = os.path.join(directory, b'.bitrot.' + ext)
+    except UnicodeEncodeError:
+        printAndOrLog("Warning: cannot encode file name: {}".format(path), log, sys.stderr)
+        raise BitrotException("Warning: cannot encode file name: {}".format(path))
+    except Exception as e:
+        printAndOrLog("Could not get absolute path of file: \'{}\'. Received error: {}".format(directory, e),log)
+        raise BitrotException("Could not open integrity file: \'{}\'. Received error: {}".format(directory, e))   
+
     return abspath
 
-def get_relative_path(directory=b'.'):
+def get_relative_path(directory=b'.', log=True):
     relative_path = os.path.relpath(directory)
     try:
         relative_path = relative_path.decode(FSENCODING)
     except UnicodeDecodeError:
         printAndOrLog("Warning: cannot decode file name: {}".format(path), log, sys.stderr)
         raise BitrotException("Warning: cannot decode file name: {}".format(path))
-    relative_path = os.path.join('.\\',relative_path)
-    relative_path = bytes(relative_path, FSENCODING)
 
+    if (_platform == "linux" or _platform == "linux2"):
+       relative_path = os.path.join('./',relative_path)
+    elif (_platform == "win32" or _platform == "win64"):
+        relative_path = os.path.join('.\\',relative_path)
+    elif (_platform == "darwin"):
+        printAndOrLog("Unsupported operating system.", log, sys.stderr)
+        raise BitrotException("Unsupported operating system.")
+    else:
+        printAndOrLog("Unsupported operating system.", log, sys.stderr)
+        raise BitrotException("Unsupported operating system.")
     return relative_path
 
-def stable_sum(bitrot_db=None):
+def stable_sum(log=True, bitrot_db=None):
     """Calculates a stable SHA512 of all entries in the database.
 
     Useful for comparing if two directories hold the same data, as it ignores
     timing information."""
     if bitrot_db is None:
-        bitrot_db = get_absolute_path(SOURCE_DIR_PATH,'db')
+        bitrot_db = get_absolute_path(log, SOURCE_DIR_PATH,'db')
         try:
             bitrot_db = bitrot_db.decode(FSENCODING)
         except UnicodeDecodeError:
@@ -1389,7 +1408,7 @@ def stable_sum(bitrot_db=None):
             print("Database {} does not exist. Cannot calculate sum.".format(bitrot_db))
             exit()
     digest = hashlib.sha512()
-    conn = get_sqlite3_cursor(bitrot_db)
+    conn = get_sqlite3_cursor(bitrot_db, copy=False, log=log)
     cur = conn.cursor()
     cur.execute('SELECT hash FROM bitrot ORDER BY path')
     row = cur.fetchone()
@@ -1399,8 +1418,8 @@ def stable_sum(bitrot_db=None):
     return digest.hexdigest()
 
 def check_sha512_integrity(chunk_size=DEFAULT_CHUNK_SIZE, verbosity=1, log=True):
-    sha512_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'sha512')
-    bitrot_db_path = get_absolute_path(SOURCE_DIR_PATH,'db')
+    sha512_path = get_absolute_path(log, SOURCE_DIR_PATH,ext=b'sha512')
+    bitrot_db_path = get_absolute_path(log, SOURCE_DIR_PATH,'db')
     try:
         sha512_path = sha512_path.decode(FSENCODING)
     except UnicodeDecodeError:
@@ -1428,7 +1447,7 @@ def check_sha512_integrity(chunk_size=DEFAULT_CHUNK_SIZE, verbosity=1, log=True)
             f.close()
     except Exception as e:
         printAndOrLog("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e),log)
-        raise ("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e))   
+        raise BitrotException("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e))   
 
     try:
         new_sha512 = integrityHash(bitrot_db_path, chunk_size, "SHA512")
@@ -1452,8 +1471,8 @@ def check_sha512_integrity(chunk_size=DEFAULT_CHUNK_SIZE, verbosity=1, log=True)
         raise BitrotException(3, 'bitrot.db integrity check failed, cannot continue.',)
 
 def update_sha512_integrity(chunk_size=DEFAULT_CHUNK_SIZE, verbosity=1, log=True):
-    sha512_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'sha512')
-    bitrot_db_path = get_absolute_path(SOURCE_DIR_PATH,'db')
+    sha512_path = get_absolute_path(log, SOURCE_DIR_PATH,ext=b'sha512')
+    bitrot_db_path = get_absolute_path(log, SOURCE_DIR_PATH,'db')
     # except IOError as e:
     #     if e.errno == errno.EACCES:
     try:
@@ -1481,7 +1500,9 @@ def update_sha512_integrity(chunk_size=DEFAULT_CHUNK_SIZE, verbosity=1, log=True
         except Exception as e:
             printAndOrLog("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e),log)
             raise BitrotException("Could not open integrity file: \'{}\'. Received error: {}".format(sha512_path, e))   
-
+        except UnicodeDecodeError:
+            printAndOrLog("Warning: cannot decode old SHA512 value: {}".format(sha512_path), log, sys.stderr)
+            raise BitrotException("Warning: cannot decode old SHA512 value: {}".format(sha512_path))
     try:
         new_sha512 = integrityHash(bitrot_db_path, chunk_size, "SHA512")
     except Exception as e:
@@ -1683,19 +1704,19 @@ def run_from_command_line():
                 printAndOrLog("Invalid source directory: \'{}\'. Received error: {}. \nExiting.".format(args.source, err),args.log)
                 exit()  
    
-    log_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'log')
+    log_path = get_absolute_path(log, SOURCE_DIR_PATH,ext=b'log')
     
     if args.sum:
         try:
-            printAndOrLog("Hash of {} is \n{}".format(SOURCE_DIR_PATH,stable_sum()),log)
+            printAndOrLog("Hash of {} is \n{}".format(SOURCE_DIR_PATH,stable_sum(log)),log)
             exit()
         except RuntimeError as e:
             printAndOrLog(str(e), log, sys.stderr)
 
     if (verbosity and log):
-        writeToLog('\n=============================\n')
-        writeToLog('Log started at ')
-        writeToLog(datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
+        writeToLog(log, '\n=============================\n')
+        writeToLog(log, 'Log started at ')
+        writeToLog(log, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
 
     DESTINATION_DIR = SOURCE_DIR
 
@@ -1747,7 +1768,7 @@ def run_from_command_line():
             with open(args.include_list) as includeFile:
                 for line in includeFile:
                     try:
-                        line = line.rstrip('\n').encode(FSENCODING)
+                        line = line.rstrip('\n')
                     except UnicodeEncodeError:
                         printAndOrLog("Warning: cannot encode file name: {}".format(path), log, sys.stderr)
                         raise BitrotException("Warning: cannot encode file name: {}".format(path))
@@ -1768,7 +1789,7 @@ def run_from_command_line():
             with open(args.exclude_list) as excludeFile:
                 for line in excludeFile:
                     try:
-                        line = line.rstrip('\n').encode(FSENCODING)
+                        line = line.rstrip('\n')
                     except UnicodeEncodeError:
                         printAndOrLog("Warning: cannot encode file name: {}".format(path), log, sys.stderr)
                         raise BitrotException("Warning: cannot encode file name: {}".format(path))
@@ -1835,8 +1856,8 @@ def run_from_command_line():
             printAndOrLog("Invalid hashing function specified: {}. Using default {}.".format(args.algorithm,DEFAULT_HASH_FUNCTION),log)
             algorithm = DEFAULT_HASH_FUNCTION
 
-    sfv_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'sfv')
-    md5_path = get_absolute_path(SOURCE_DIR_PATH,ext=b'md5')
+    sfv_path = get_absolute_path(log, SOURCE_DIR_PATH,ext=b'sfv')
+    md5_path = get_absolute_path(log, SOURCE_DIR_PATH,ext=b'md5')
 
     try:
         os.remove(sfv_path)
