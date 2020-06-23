@@ -222,7 +222,7 @@ improvements by
 'Ben Shepherd <mailto:bjashepherd@gmail.com>'_,
 'Jean-Louis Fuchs <mailto:ganwell@fangorn.ch>'_,
 'Marcus Linderoth <marcus@thingsquare.com>'_,
-'p1r473 <mailto:newpassword@gmail.com>'_,
+'p1r473 <mailto:subwayjared@gmail.com>'_,
 'Peter Hofmann <mailto:scm@uninformativ.de>'_,
 'Phil Lundrigan <mailto:philipbl@cs.utah.edu>'_,
 'Reid Williams <rwilliams@ideo.com>'_,

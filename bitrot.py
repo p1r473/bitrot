@@ -53,7 +53,11 @@ import re
 import unicodedata
 import gc
 
+
 ################### USER CONFIG ###################
+RECEIVER = 'RECEIVER@gmail.com'
+SENDER = 'SENDER@gmail.com'
+PASSWORD = 'PASSWORD'
 SERVER = smtplib.SMTP('smtp.gmail.com', 587)
 DEFAULT_HASH_FUNCTION = "SHA512"
 DEFAULT_CHUNK_SIZE = 1048576 # used to be 16384 - block size in HFS+; 4X the block size in ext4
@@ -77,11 +81,16 @@ if sys.version[0] == '2':
 def sendEmail(MESSAGE="", SUBJECT="", log=True, verbosity=1):   
     SERVER.ehlo()
     SERVER.starttls()
+    SERVER.login(SENDER, PASSWORD)
 
+    BODY = '\r\n'.join(['To: %s' % RECEIVER,
+                        'From: %s' % SENDER,
                         'Subject: %s' % SUBJECT,
                         '', MESSAGE])
 
     try:
+        SERVER.sendmail(SENDER, [RECEIVER], BODY)
+        printAndOrLog("Email '{}' sent from {} to {}".format(SUBJECT,SENDER,RECEIVER))
     except Exception as err:
         printAndOrLog('Email sending error: {}'.format(err))
     SERVER.quit()
