@@ -44,16 +44,13 @@ def version():
     release = ".".join(str(num) for num in VERSION)
     return release
 
-REQUIRED_PACKAGES = [
-    'futures',
-    'progressbar2',
-]
+REQUIRED_PACKAGES = ['progressbar2',]
 
 
 setup(
     name='bitrot',
     version=version(),
-    author = u'Łukasz Langa',
+    author = 'Lukasz Langa',
     author_email = 'lukasz@langa.pl',
     description = ("Detects bit rotten files on the hard drive to save your "
                    "precious photo and music collection from slow decay."),
@@ -62,7 +59,7 @@ setup(
     keywords = 'file checksum database',
     platforms = ['any'],
     license = 'MIT',
-    python_requires='>=2.7.0',
+    python_requires='>=3.5.0',
     install_requires=REQUIRED_PACKAGES,
     include_package_data=True,
     packages=find_packages(exclude=('tests', 'docs')),
