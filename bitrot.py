@@ -56,7 +56,6 @@ import unicodedata
 import gc
 
 ################### USER CONFIG ###################
-RECEIVER = 'RECEIVER@gmail.com'
 SENDER = 'SENDER@gmail.com'
 PASSWORD = 'PASSWORD'
 SERVER = smtplib.SMTP('smtp.gmail.com', 587)
