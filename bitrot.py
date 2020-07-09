@@ -26,6 +26,7 @@ from __future__ import division
 from __future__ import print_function
 from __future__ import unicode_literals
 from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+from multiprocessing import freeze_support
 import argparse
 import atexit
 import datetime
@@ -78,7 +79,7 @@ if sys.version[0] == '2':
     str = type(u'text')
     # use \'bytes\' for bytestrings
 
-def sendEmail(MESSAGE="", SUBJECT="", log=True, verbosity=1):   
+def sendEmail(MESSAGE="", SUBJECT="", log=True, verbosity=1):  
     SERVER.ehlo()
     SERVER.starttls()
     SERVER.login(SENDER, PASSWORD)
@@ -247,6 +248,7 @@ def hash(path, bar, format_custom_text, chunk_size=DEFAULT_CHUNK_SIZE, algorithm
     # tiger160,4  24cc78a7f6ff3546e7984e59695ca13d804e0b68
     # tiger192,3  3293ac630c13f0245f92bbb1766e16167a4e58492dde73f3
     # tiger192,4  24cc78a7f6ff3546e7984e59695ca13d804e0b686e255194
+    global HASHPROGRESSCOUNTER
     if (algorithm == "MD5"):
         if(os.stat(path).st_size) == 0:
             return "d41d8cd98f00b204e9800998ecf8427e"
@@ -294,7 +296,6 @@ def hash(path, bar, format_custom_text, chunk_size=DEFAULT_CHUNK_SIZE, algorithm
                 f.close()
     except Exception as err:
         printAndOrLog("Could not open file: \'{}\'. Received error: {}".format(path, err),log)
-
     if (sfv != ""):
         if (sfv == "MD5" and algorithm.upper() == "MD5"):
             sfvDigest = digest.hexdigest()
@@ -724,9 +725,9 @@ class CustomETA(progressbar.widgets.ETA):
     def __call__(self, progress, data):
         # Run 'ETA.__call__' to update 'data'. This adds the 'eta_seconds'
         data_plus_one = data.copy()
-        if (HASHPROGRESSCOUNTER < LENPATHS):
+        if (HASHPROGRESSCOUNTER == 1):
             data_plus_one['value'] += 1
-            data_plus_one['percentage'] = ((HASHPROGRESSCOUNTER + 1)/ LENPATHS * 100.0)
+            data_plus_one['percentage'] = ((HASHPROGRESSCOUNTER )/ LENPATHS * 100.0)
         formatted = progressbar.widgets.ETA.__call__(self, progress, data_plus_one)
 
         # ETA might not be available, if the maximum length is not available
@@ -768,7 +769,7 @@ class Bitrot(object):
         #ProcessPoolExecutor runs each of your workers in its own separate child process. (CPU Bound)
         #ThreadPoolExecutor runs each of your workers in separate threads within the main process. (IO Bound)
         self.workers = workers
-        if (workers != 99):
+        if (workers != 1):
             self.pool = ThreadPoolExecutor(max_workers=workers)
         self.email = email
         self.log = log
@@ -887,11 +888,8 @@ class Bitrot(object):
                 CustomETA(format_not_started='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s|ETA:%(eta)8s', format_finished='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s|ETA:%(eta)8s', format_zero='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s', format_NA='%(value)01d/%(max_value)d|%(percentage)3d%%|Elapsed:%(elapsed)8s'),
                 progressbar.Bar(marker='#', left='|', right='|', fill=' ', fill_left=True),               
                 ])
-            if (LENPATHS > 0):
-                format_custom_text.update_mapping(f=progressFormat(paths[HASHPROGRESSCOUNTER]))
-                bar.update(HASHPROGRESSCOUNTER)
 
-        if (self.workers == 99):
+        if (self.workers == 1):
             pointer = paths
             if paths:
                  del paths
@@ -903,7 +901,7 @@ class Bitrot(object):
         gc.collect()
 
         for future in pointer:
-            if (self.workers == 99):
+            if (self.workers == 1):
                 path = future
                 try:
                     st = os.stat(path)
@@ -912,7 +910,7 @@ class Bitrot(object):
                         # The file disappeared between listing existing paths and
                         # this run or is (temporarily?) locked with different
                         # permissions. We'll just skip it for now.
-                        printAndOrLog('warning: `{}` is currently unavailable for reading: {}'.format(path, ex), log, sys.stderr)
+                        printAndOrLog('warning: `{}` is currently unavailable for reading: {}'.format(path, ex), self.log, sys.stderr)
                         continue
                     raise
             else:
@@ -921,7 +919,7 @@ class Bitrot(object):
                 except BitrotException:
                     continue
 
-            if (self.workers == 99):
+            if (self.workers == 1):
                 if self.verbosity:
                     HASHPROGRESSCOUNTER+=1
                 new_mtime = int(st.st_mtime)
@@ -1002,7 +1000,7 @@ class Bitrot(object):
 
             current_size += new_size
 
-            if (self.workers == 99):
+            if (self.workers == 1):
                 try:
                     new_hash = hash(path, bar, format_custom_text, self.chunk_size, self.algorithm, self.verbosity, self.log, self.sfv)
                 except (IOError, OSError) as e:
@@ -1013,7 +1011,7 @@ class Bitrot(object):
             if path not in missing_paths:
                 # We are not expecting this path, it wasn't in the database yet.
                 # It's either new, a rename, or recently excluded. Let's handle that 
-                if (self.workers == 99):
+                if (self.workers == 1):
                     stored_path = self.handle_unknown_path(cur, path, new_mtime, new_hash, pointer, hashes, self.test, self.log)
                 else:
                     stored_path = self.handle_unknown_path(cur, path, new_mtime, new_hash, paths, hashes, self.test, self.log)
@@ -1995,4 +1993,5 @@ def run_from_command_line():
         sys.exit(bre.args[0])
 
 if __name__ == '__main__':
+    freeze_support()
     run_from_command_line()

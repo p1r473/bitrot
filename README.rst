@@ -8,9 +8,10 @@ and music collection from slow decay.
 Installation
 ------------
 Windows:
-pip3 install .
+  pip3 install .
 
 Linux:
+  python3 setup.py install
 
 Usage
 -----
