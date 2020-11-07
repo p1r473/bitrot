@@ -79,7 +79,7 @@ if sys.version[0] == '2':
     str = type(u'text')
     # use \'bytes\' for bytestrings
 
-def sendEmail(MESSAGE="", SUBJECT="", log=True, verbosity=1):  
+def sendEmail(MESSAGE="", SUBJECT="", log=True, verbosity=1):
     SERVER.ehlo()
     SERVER.starttls()
     SERVER.login(SENDER, PASSWORD)
@@ -1660,43 +1660,67 @@ def run_from_command_line():
     args = parser.parse_args()
     log = args.log
 
+
+    verbosity = int(args.verbose)
+
     try:
-        verbosity = int(args.verbose)
-        if (verbosity == 2):
-            printAndOrLog("Verbosity option selected: {}. List missing entries.".format(args.verbose),log)
-        elif (verbosity == 3):
-            printAndOrLog("Verbosity option selected: {}. List missing, fixed, new, renamed, and updated entries.".format(args.verbose),log)
-        elif (verbosity == 4):
-            printAndOrLog("Verbosity option selected: {}. List missing, fixed, new, renamed, updated entries, and excluded files.".format(args.verbose),log)
-        elif (verbosity == 5):
-            printAndOrLog("Verbosity option selected: {}. List missing, fixed, new, renamed, updated entries, excluded files, and existing files.".format(args.verbose),log)
-        elif not (verbosity == 0) and not (verbosity == 1):
-            printAndOrLog("Invalid verbosity option selected: {}. Using default level 1.".format(args.verbose),log)
-            verbosity = 1
+        if not args.source:
+            SOURCE_DIR = '.'
+            # if verbosity:
+            #     printAndOrLog('Using current directory for file list.',args.log)
+        else:
+            if (os.path.isdir(args.source) == True):
+                os.chdir(args.source)
+                SOURCE_DIR_PATH = args.source
+            #     if verbosity:
+            #         printAndOrLog('Source directory \'{}\'.'.format(args.source),args.log)
+            # else:
+            #     printAndOrLog("Invalid Source directory: \'{}\'.\nExiting.".format(args.source),log) 
+            #     exit()
     except Exception as err:
+            SOURCE_DIR = '.'
+            # if verbosity:
+            #     printAndOrLog("Invalid source directory: \'{}\'. Received error: {}. \nExiting.".format(args.source, err),args.log)
+            #     exit()
+
+
+    if (verbosity and log):
+        writeToLog(log, '\n=============================\n')
+        writeToLog(log, 'Log started at ')
+        writeToLog(log, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
+
+    if (verbosity == 2):
+        printAndOrLog("Verbosity option selected: {}. List missing entries.".format(args.verbose),log)
+    elif (verbosity == 3):
+        printAndOrLog("Verbosity option selected: {}. List missing, fixed, new, renamed, and updated entries.".format(args.verbose),log)
+    elif (verbosity == 4):
+        printAndOrLog("Verbosity option selected: {}. List missing, fixed, new, renamed, updated entries, and excluded files.".format(args.verbose),log)
+    elif (verbosity == 5):
+        printAndOrLog("Verbosity option selected: {}. List missing, fixed, new, renamed, updated entries, excluded files, and existing files.".format(args.verbose),log)
+    elif not (verbosity == 0) and not (verbosity == 1):
         printAndOrLog("Invalid verbosity option selected: {}. Using default level 1.".format(args.verbose),log)
         verbosity = 1
 
     try:
         if not args.source:
-            SOURCE_DIR = '.'
+            #SOURCE_DIR = '.'
             if verbosity:
                 printAndOrLog('Using current directory for file list.',args.log)
         else:
             if (os.path.isdir(args.source) == True):
-                os.chdir(args.source)
-                SOURCE_DIR_PATH = args.source
+                # os.chdir(args.source)
+                # SOURCE_DIR_PATH = args.source
                 if verbosity:
                     printAndOrLog('Source directory \'{}\'.'.format(args.source),args.log)
             else:
                 printAndOrLog("Invalid Source directory: \'{}\'.\nExiting.".format(args.source),log) 
                 exit()
     except Exception as err:
-            SOURCE_DIR = '.'
+            # SOURCE_DIR = '.'
             if verbosity:
                 printAndOrLog("Invalid source directory: \'{}\'. Received error: {}. \nExiting.".format(args.source, err),args.log)
                 exit()  
-   
+
     log_path = get_absolute_path(log, SOURCE_DIR_PATH,ext=b'log')
     
     if args.sum:
@@ -1706,10 +1730,6 @@ def run_from_command_line():
         except RuntimeError as e:
             printAndOrLog(str(e), log, sys.stderr)
 
-    if (verbosity and log):
-        writeToLog(log, '\n=============================\n')
-        writeToLog(log, 'Log started at ')
-        writeToLog(log, datetime.datetime.now().strftime("%Y-%m-%d %H:%M"))
 
     DESTINATION_DIR = SOURCE_DIR
 
